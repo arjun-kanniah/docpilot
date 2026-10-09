@@ -1,0 +1,6 @@
+# Toolchain for DocPilot. Run `mise install` once; versions are pinned for everyone.
+# Python itself is managed by uv (see backend/.python-version).
+[tools]
+node = "24"
+uv = "0.12"
+just = "1.58"

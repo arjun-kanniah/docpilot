@@ -1,0 +1,20 @@
+# Local development services only. Credentials here are for a throwaway local database.
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: docpilot
+      POSTGRES_PASSWORD: docpilot
+      POSTGRES_DB: docpilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - docpilot-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpilot -d docpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  docpilot-db:

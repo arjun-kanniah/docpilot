@@ -1,0 +1,24 @@
+{
+  "name": "DocPilot",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "postCreateCommand": "curl -fsSL https://mise.run | sh && ~/.local/bin/mise trust && ~/.local/bin/mise install && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise exec -- just setup",
+  "forwardPorts": [5173, 8000],
+  "portsAttributes": {
+    "5173": { "label": "Web" },
+    "8000": { "label": "API" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "oxc.oxc-vscode",
+        "skellock.just",
+        "editorconfig.editorconfig"
+      ]
+    }
+  }
+}
