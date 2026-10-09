@@ -6,8 +6,8 @@
 Markdown, and DocPilot retrieves the relevant passages and answers with sources you can check.
 The LLM provider is switchable per request.
 
-> **Status:** early development. The project skeleton, toolchain and CI are in place; the
-> features below are being built in the order listed in the [roadmap](#roadmap).
+> **Status:** early development. Document ingestion and semantic search work today; answers
+> with citations are next. See the [roadmap](#roadmap).
 
 ## Stack
 
@@ -31,17 +31,36 @@ VS Code and choose *Reopen in Container*. Tools and dependencies install automat
 mise install          # node, uv, just at pinned versions
 cp .env.example .env  # add API keys when needed
 just setup            # install backend + frontend dependencies
-just db               # start Postgres + pgvector in Docker
+just migrate          # start Postgres + pgvector in Docker and create the schema
 just dev-api          # terminal 1: API on http://localhost:8000
 just dev-web          # terminal 2: web app on http://localhost:5173
 ```
 
 Run `just` to see every task, and `just check` to run what CI runs.
 
+## How ingestion works
+
+1. **Upload** a PDF, Markdown or text file (up to 20 MB). Re-uploading identical bytes is detected
+   by SHA-256 and skipped.
+2. **Extract** text per page (PDFs keep page numbers for citations).
+3. **Chunk** into ~1,000-character passages on paragraph and sentence boundaries, with a
+   150-character overlap so a sentence cut at a boundary is still findable.
+4. **Embed** each chunk locally with `BAAI/bge-small-en-v1.5` (384 dimensions, CPU, no API cost).
+5. **Store** in Postgres with an HNSW index for fast cosine-similarity search.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/documents` | Upload and index a file |
+| `GET /api/documents` | List documents with page and chunk counts |
+| `DELETE /api/documents/{id}` | Remove a document and its chunks |
+| `POST /api/search` | Top-k passages for a query, with similarity scores |
+
+Interactive API docs are at http://localhost:8000/docs while `just dev-api` is running.
+
 ## Project layout
 
 ```
-backend/    FastAPI service (src/docpilot, tests)
+backend/    FastAPI service (src/docpilot), Alembic migrations, tests
 frontend/   React + TypeScript web app
 .devcontainer/  reproducible dev environment
 justfile    task runner: setup, dev, lint, test
@@ -51,7 +70,8 @@ mise.toml   pinned toolchain
 ## Roadmap
 
 - [x] Skeleton: API + web app, dev container, CI
-- [ ] Ingestion: upload PDF/Markdown → chunk → embed → store in pgvector
+- [x] Ingestion: upload PDF/Markdown/text → chunk → embed locally → store in pgvector
+- [x] Semantic search over chunks, with page references
 - [ ] Q&A: retrieve passages, stream answers with citations
 - [ ] Provider switch: Claude ⇄ Gemini (OpenAI next) behind one interface
 - [ ] Evaluation: a question set with scored answers, run in CI

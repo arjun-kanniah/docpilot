@@ -14,6 +14,10 @@ setup:
 db:
     docker compose up -d --wait db
 
+# Apply database migrations to the dev database
+migrate: db
+    cd backend && uv run alembic upgrade head
+
 # Stop local services (data is kept in a Docker volume)
 down:
     docker compose down
@@ -35,8 +39,8 @@ lint:
 fmt:
     cd backend && uv run ruff check --fix . && uv run ruff format .
 
-# Run tests and the frontend type-check/build
-test:
+# Run tests (against a separate docpilot_test database) and the frontend type-check/build
+test: db
     cd backend && uv run pytest
     cd frontend && npm run build
 

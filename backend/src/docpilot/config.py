@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,6 +12,15 @@ class Settings(BaseSettings):
     env: str = "local"
     database_url: str = "postgresql://docpilot:docpilot@localhost:5432/docpilot"
     cors_origins: list[str] = ["http://localhost:5173"]
+
+    # Ingestion
+    max_upload_mb: int = 20
+    chunk_max_chars: int = 1000
+    chunk_overlap_chars: int = 150
+
+    # Local embedding model (downloaded once, then cached)
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    model_cache_dir: Path = Path.home() / ".cache" / "docpilot" / "models"
 
 
 @lru_cache
