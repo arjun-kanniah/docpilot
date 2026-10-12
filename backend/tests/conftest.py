@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from docpilot.config import get_settings
 from docpilot.db import get_session, sqlalchemy_url
 from docpilot.embeddings import EMBEDDING_DIM, get_embedder
+from docpilot.llm.base import Usage
+from docpilot.llm.providers import LLMRegistry, get_llm_registry
 from docpilot.main import app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -40,6 +42,21 @@ class FakeEmbedder:
 
     def embed_query(self, text_: str) -> list[float]:
         return self._vector(text_)
+
+
+class FakeChat:
+    """Records each request and streams a canned answer that cites source 1."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def stream(
+        self, *, model: str, system: str, prompt: str, max_tokens: int
+    ) -> Iterator[str | Usage]:
+        self.calls.append({"model": model, "system": system, "prompt": prompt})
+        yield "Refunds are allowed "
+        yield "within 30 days [1]."
+        yield Usage(input_tokens=120, output_tokens=9)
 
 
 @pytest.fixture(scope="session")
@@ -73,8 +90,15 @@ def db_session(test_db_url: str) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(db_session: Session) -> Iterator[TestClient]:
+def fake_chat() -> FakeChat:
+    return FakeChat()
+
+
+@pytest.fixture
+def client(db_session: Session, fake_chat: FakeChat) -> Iterator[TestClient]:
+    registry = LLMRegistry({"anthropic": fake_chat}, default_provider="anthropic")
     app.dependency_overrides[get_session] = lambda: db_session
     app.dependency_overrides[get_embedder] = FakeEmbedder
+    app.dependency_overrides[get_llm_registry] = lambda: registry
     yield TestClient(app)
     app.dependency_overrides.clear()

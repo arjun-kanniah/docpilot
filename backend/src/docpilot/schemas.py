@@ -31,3 +31,26 @@ class SearchHitOut(BaseModel):
     page: int | None
     text: str
     score: float
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    k: int | None = Field(default=None, ge=1, le=20)
+    provider: str | None = None
+    model: str | None = None
+
+
+class ProviderOut(BaseModel):
+    id: str
+    label: str
+    models: list[str]
+
+
+class ModelChoiceOut(BaseModel):
+    provider: str
+    model: str
+
+
+class ModelsOut(BaseModel):
+    providers: list[ProviderOut]
+    default: ModelChoiceOut | None

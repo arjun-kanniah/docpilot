@@ -212,3 +212,65 @@ h2 {
 .score {
   font-variant-numeric: tabular-nums;
 }
+
+h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.model-select {
+  min-width: 0;
+  max-width: 60%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.answer {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.answer p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer .usage {
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+
+.cite {
+  display: inline-block;
+  min-width: 1.4em;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: 0.15em;
+}
+
+.hits li:target {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.hits summary {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}

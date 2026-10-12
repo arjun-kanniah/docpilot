@@ -1,7 +1,44 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
-import { api, type DocumentInfo, type Health, type SearchHit } from './api'
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  api,
+  type AskUsage,
+  type DocumentInfo,
+  type Health,
+  type ModelsInfo,
+  type SearchHit,
+} from './api'
 
 const ACCEPTED = '.pdf,.md,.markdown,.txt'
+const MODEL_KEY = 'docpilot.model'
+
+function loadModelChoice(): string | null {
+  try {
+    return localStorage.getItem(MODEL_KEY)
+  } catch {
+    return null
+  }
+}
+
+function saveModelChoice(value: string) {
+  try {
+    localStorage.setItem(MODEL_KEY, value)
+  } catch {
+    // storage unavailable (private mode): the choice just isn't remembered
+  }
+}
+
+/** Turn [n] markers in the answer into links to the numbered sources. */
+function withCitations(text: string, sourceCount: number): ReactNode[] {
+  return text.split(/(\[\d+\])/).map((part, i) => {
+    const n = Number(/^\[(\d+)\]$/.exec(part)?.[1])
+    if (!n || n > sourceCount) return part
+    return (
+      <a key={i} className="cite" href={`#source-${n}`} aria-label={`Source ${n}`}>
+        {n}
+      </a>
+    )
+  })
+}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -19,9 +56,15 @@ function App() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([])
   const [uploading, setUploading] = useState(false)
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-  const [query, setQuery] = useState('')
-  const [searching, setSearching] = useState(false)
-  const [hits, setHits] = useState<SearchHit[] | null>(null)
+  const [models, setModels] = useState<ModelsInfo | null>(null)
+  const [modelChoice, setModelChoice] = useState('')
+  const [question, setQuestion] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [answer, setAnswer] = useState('')
+  const [sources, setSources] = useState<SearchHit[] | null>(null)
+  const [usage, setUsage] = useState<AskUsage | null>(null)
+  const [askError, setAskError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const refreshDocuments = useCallback(() => {
     api
@@ -35,6 +78,16 @@ function App() {
       .health()
       .then(setHealth)
       .catch((err: unknown) => setHealthError(errorMessage(err)))
+    api
+      .models()
+      .then((info) => {
+        setModels(info)
+        const options = info.providers.flatMap((p) => p.models.map((m) => `${p.id}:${m}`))
+        const saved = loadModelChoice()
+        const fallback = info.default ? `${info.default.provider}:${info.default.model}` : ''
+        setModelChoice(saved && options.includes(saved) ? saved : fallback)
+      })
+      .catch(() => setModels({ providers: [], default: null }))
     refreshDocuments()
   }, [refreshDocuments])
 
@@ -63,23 +116,39 @@ function App() {
   async function handleDelete(doc: DocumentInfo) {
     try {
       await api.deleteDocument(doc.id)
-      setHits((current) => current?.filter((h) => h.document_id !== doc.id) ?? null)
       refreshDocuments()
     } catch (err) {
       setNotice({ kind: 'error', text: errorMessage(err) })
     }
   }
 
-  async function handleSearch(event: FormEvent) {
+  async function handleAsk(event: FormEvent) {
     event.preventDefault()
-    if (!query.trim()) return
-    setSearching(true)
+    if (!question.trim() || asking) return
+    const [provider, model] = modelChoice.split(':')
+    const controller = new AbortController()
+    abortRef.current = controller
+    setAsking(true)
+    setAnswer('')
+    setSources(null)
+    setUsage(null)
+    setAskError(null)
     try {
-      setHits(await api.search(query.trim()))
+      await api.ask(
+        { question: question.trim(), provider: provider || undefined, model: model || undefined },
+        {
+          onSources: setSources,
+          onDelta: (text) => setAnswer((current) => current + text),
+          onDone: setUsage,
+          onError: setAskError,
+        },
+        controller.signal,
+      )
     } catch (err) {
-      setNotice({ kind: 'error', text: errorMessage(err) })
+      if (!controller.signal.aborted) setAskError(errorMessage(err))
     } finally {
-      setSearching(false)
+      abortRef.current = null
+      setAsking(false)
     }
   }
 
@@ -150,39 +219,96 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>Search</h2>
-        <p className="muted">
-          Finds the passages most similar in meaning to your question. Answers with citations come
-          next.
-        </p>
-        <form className="search" onSubmit={(e) => void handleSearch(e)}>
+        <div className="card-head">
+          <h2>Ask</h2>
+          {models && models.providers.length > 0 && (
+            <select
+              className="model-select"
+              value={modelChoice}
+              onChange={(e) => {
+                setModelChoice(e.target.value)
+                saveModelChoice(e.target.value)
+              }}
+              aria-label="Model"
+              disabled={asking}
+            >
+              {models.providers.map((p) => (
+                <optgroup key={p.id} label={p.label}>
+                  {p.models.map((m) => (
+                    <option key={m} value={`${p.id}:${m}`}>
+                      {m}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
+        </div>
+        {models && models.providers.length === 0 && (
+          <p className="muted">
+            No LLM provider is configured. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env and
+            restart the API.
+          </p>
+        )}
+        <form className="search" onSubmit={(e) => void handleAsk(e)}>
           <input
             type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
             placeholder="e.g. Is water damage covered?"
-            aria-label="Search query"
+            aria-label="Question"
           />
-          <button type="submit" className="button" disabled={searching || !query.trim()}>
-            {searching ? 'Searching…' : 'Search'}
-          </button>
+          {asking ? (
+            <button type="button" className="button" onClick={() => abortRef.current?.abort()}>
+              Stop
+            </button>
+          ) : (
+            <button type="submit" className="button" disabled={!question.trim() || !modelChoice}>
+              Ask
+            </button>
+          )}
         </form>
-        {hits && hits.length === 0 && <p className="muted">No matches. Upload documents first.</p>}
-        {hits && hits.length > 0 && (
-          <ol className="hits">
-            {hits.map((hit) => (
-              <li key={hit.chunk_id}>
-                <div className="hit-meta">
-                  <span>
-                    {hit.filename}
-                    {hit.page ? `, page ${hit.page}` : ''}
-                  </span>
-                  <span className="score">{hit.score.toFixed(2)}</span>
-                </div>
-                <p>{hit.text}</p>
-              </li>
-            ))}
-          </ol>
+
+        {(answer || asking || askError) && (
+          <div className="answer" aria-live="polite">
+            {answer ? (
+              <p>{withCitations(answer, sources?.length ?? 0)}</p>
+            ) : (
+              asking && <p className="muted">{sources ? 'Thinking…' : 'Finding passages…'}</p>
+            )}
+            {askError && <p className="notice-error">{askError}</p>}
+            {usage && (
+              <p className="muted usage">
+                {usage.model} · {usage.input_tokens.toLocaleString()} in /{' '}
+                {usage.output_tokens.toLocaleString()} out tokens
+              </p>
+            )}
+          </div>
+        )}
+
+        {sources && sources.length > 0 && (
+          <div>
+            <h3>Sources</h3>
+            <ol className="hits">
+              {sources.map((hit, i) => (
+                <li key={hit.chunk_id} id={`source-${i + 1}`}>
+                  <div className="hit-meta">
+                    <span>
+                      <span className="cite">{i + 1}</span> {hit.filename}
+                      {hit.page ? `, page ${hit.page}` : ''}
+                    </span>
+                    <span className="score" title="Similarity to the question">
+                      {hit.score.toFixed(2)}
+                    </span>
+                  </div>
+                  <details>
+                    <summary>Passage</summary>
+                    <p>{hit.text}</p>
+                  </details>
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
       </section>
     </main>
