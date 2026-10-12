@@ -10,6 +10,10 @@ The LLM provider is switchable per request.
 company's knowledge base (read-only, cheap models, rate-limited). See [Deploying](#deploying)
 for how it runs.
 
+![DocPilot answering a question with a cited comparison table](docs/demo.gif)
+
+<sub>Recorded on the live demo with Claude Haiku; the wait for the model's first token is shortened.</sub>
+
 ## Stack
 
 | Layer | Choice |
