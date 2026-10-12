@@ -67,3 +67,14 @@ variable "questions_per_day" {
   type        = number
   default     = 500
 }
+
+variable "email_aliases" {
+  description = "Addresses at brand_zone that forward to email_forward_to."
+  type        = list(string)
+  default     = ["arjun", "support"]
+}
+
+variable "email_forward_to" {
+  description = "Inbox that receives the aliases. Kept in terraform.tfvars, out of the public repo."
+  type        = string
+}
