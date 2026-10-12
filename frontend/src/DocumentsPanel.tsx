@@ -13,6 +13,8 @@ function formatSize(bytes: number): string {
 
 type Props = {
   documents: DocumentInfo[]
+  /** Public demo: the library is fixed, so uploads and deletes are hidden. */
+  readOnly: boolean
   uploading: boolean
   notice: Notice | null
   onUpload: (files: FileList) => void
@@ -20,13 +22,22 @@ type Props = {
 }
 
 /** Upload (button or drag and drop) and the list of indexed documents. */
-export function DocumentsPanel({ documents, uploading, notice, onUpload, onDelete }: Props) {
+export function DocumentsPanel({
+  documents,
+  readOnly,
+  uploading,
+  notice,
+  onUpload,
+  onDelete,
+}: Props) {
   const [dragging, setDragging] = useState(false)
 
   function handleDrop(event: DragEvent) {
     event.preventDefault()
     setDragging(false)
-    if (!uploading && event.dataTransfer.files.length) onUpload(event.dataTransfer.files)
+    if (!readOnly && !uploading && event.dataTransfer.files.length) {
+      onUpload(event.dataTransfer.files)
+    }
   }
 
   return (
@@ -35,26 +46,39 @@ export function DocumentsPanel({ documents, uploading, notice, onUpload, onDelet
       aria-label="Documents"
       onDragOver={(e) => {
         e.preventDefault()
-        setDragging(true)
+        if (!readOnly) setDragging(true)
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
     >
-      <label className={`button upload ${uploading ? 'disabled' : ''}`}>
-        {uploading ? 'Indexing…' : '+ Upload files'}
-        <input
-          type="file"
-          accept={ACCEPTED}
-          multiple
-          hidden
-          disabled={uploading}
-          onChange={(e) => {
-            if (e.target.files?.length) onUpload(e.target.files)
-            e.target.value = ''
-          }}
-        />
-      </label>
-      <p className="hint">PDF, Markdown or text, up to 20 MB. Or drop files here.</p>
+      {readOnly ? (
+        <p className="demo-note">
+          <strong>Public demo.</strong> Ask about Aurora Instruments, a fictional company whose
+          knowledge base is loaded here. Uploads are off;{' '}
+          <a href="https://github.com/arjun-kanniah/docpilot" target="_blank" rel="noreferrer">
+            run DocPilot locally
+          </a>{' '}
+          to use your own files.
+        </p>
+      ) : (
+        <>
+          <label className={`button upload ${uploading ? 'disabled' : ''}`}>
+            {uploading ? 'Indexing…' : '+ Upload files'}
+            <input
+              type="file"
+              accept={ACCEPTED}
+              multiple
+              hidden
+              disabled={uploading}
+              onChange={(e) => {
+                if (e.target.files?.length) onUpload(e.target.files)
+                e.target.value = ''
+              }}
+            />
+          </label>
+          <p className="hint">PDF, Markdown or text, up to 20 MB. Or drop files here.</p>
+        </>
+      )}
 
       {notice && (
         <p className={`notice notice-${notice.kind}`} role="status">
@@ -78,15 +102,17 @@ export function DocumentsPanel({ documents, uploading, notice, onUpload, onDelet
                   {doc.page_count ? ` · ${doc.page_count} pp` : ''} · {doc.chunk_count} chunks
                 </span>
               </div>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => onDelete(doc)}
-                aria-label={`Delete ${doc.filename}`}
-                title="Delete"
-              >
-                ×
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => onDelete(doc)}
+                  aria-label={`Delete ${doc.filename}`}
+                  title="Delete"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>

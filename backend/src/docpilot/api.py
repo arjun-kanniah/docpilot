@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from docpilot.ingest import EmptyDocumentError, SearchHit, ingest_document, sear
 from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice, LLMConfigError, LLMRegistry, get_llm_registry
 from docpilot.models import Chunk, Document
+from docpilot.ratelimit import RateLimiter, get_rate_limiter, visitor_id
 from docpilot.schemas import (
     AskIn,
     DocumentOut,
@@ -37,6 +38,16 @@ SessionDep = Annotated[Session, Depends(get_session)]
 EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 RegistryDep = Annotated[LLMRegistry, Depends(get_llm_registry)]
+LimiterDep = Annotated[RateLimiter, Depends(get_rate_limiter)]
+
+
+def require_writable_library(settings: SettingsDep) -> None:
+    """The public demo's document library is read-only."""
+    if settings.demo_mode:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "The public demo's library is read-only. Run DocPilot locally to use your own files.",
+        )
 
 
 def _document_out(document: Document, chunk_count: int) -> DocumentOut:
@@ -51,7 +62,12 @@ def _document_out(document: Document, chunk_count: int) -> DocumentOut:
     )
 
 
-@router.post("/documents", response_model=IngestOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/documents",
+    response_model=IngestOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_writable_library)],
+)
 def upload_document(
     file: UploadFile,
     response: Response,
@@ -90,7 +106,11 @@ def list_documents(session: SessionDep) -> list[DocumentOut]:
     return [_document_out(document, count) for document, count in rows]
 
 
-@router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_writable_library)],
+)
 def delete_document(document_id: uuid.UUID, session: SessionDep) -> None:
     document = session.get(Document, document_id)
     if document is None:
@@ -126,17 +146,24 @@ class AskPlan:
 
 def prepare_ask(
     body: AskIn,
+    request: Request,
     session: SessionDep,
     embedder: EmbedderDep,
     settings: SettingsDep,
     registry: RegistryDep,
+    limiter: LimiterDep,
 ) -> AskPlan:
-    """Validate and retrieve before the stream opens, so bad requests get a normal 4xx."""
+    """Validate, rate-limit and retrieve before the stream opens, so refusals get a normal 4xx."""
     try:
         choice = registry.resolve(body.provider, body.model)
     except LLMConfigError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    hits = search_chunks(session, embedder, body.question, body.k or settings.answer_top_k)
+    k = body.k or settings.answer_top_k
+    if settings.demo_mode:
+        if refusal := limiter.check(visitor_id(request)):
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, refusal)
+        k = min(k, settings.answer_top_k)  # bigger prompts cost more
+    hits = search_chunks(session, embedder, body.question, k)
     return AskPlan(body.question, hits, choice)
 
 

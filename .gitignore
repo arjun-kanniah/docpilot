@@ -25,6 +25,7 @@ dist/
 *.tfstate
 *.tfstate.*
 *.tfplan
+terraform.tfvars
 
 # Editors / OS
 .vscode/*

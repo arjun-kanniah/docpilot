@@ -1,5 +1,5 @@
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass, replace
 from functools import lru_cache
 
 from docpilot.config import get_settings
@@ -41,30 +41,41 @@ class Choice:
 
 
 class LLMRegistry:
-    """Resolves a (provider, model) request against the allowlist and the configured keys."""
+    """Resolves a (provider, model) request against the allowlist and the configured keys.
+
+    `allowed` narrows the catalog further, e.g. to cheap models on the public demo.
+    """
 
     def __init__(
         self,
         clients: Mapping[str, ChatModel],
         default_provider: str,
         default_model: str | None = None,
+        allowed: Collection[str] | None = None,
     ) -> None:
         self._clients = dict(clients)
         self._default_provider = default_provider
         self._default_model = default_model
+        self._allowed = set(allowed) if allowed is not None else None
+
+    def _models(self, provider: str) -> tuple[str, ...]:
+        models = CATALOG[provider].models
+        return tuple(m for m in models if self._allowed is None or m in self._allowed)
 
     def available(self) -> list[ProviderInfo]:
-        return [info for pid, info in CATALOG.items() if pid in self._clients]
+        return [
+            replace(info, models=self._models(pid))
+            for pid, info in CATALOG.items()
+            if pid in self._clients and self._models(pid)
+        ]
 
     def default(self) -> tuple[str, str] | None:
-        """The configured default, or the first usable provider if its key is missing."""
-        provider = self._default_provider
-        if provider not in self._clients:
-            if not self._clients:
-                return None
-            provider = next(info.id for info in self.available())
-            return provider, CATALOG[provider].models[0]
-        models = CATALOG[provider].models
+        """The configured default, or the first usable provider if it isn't available."""
+        usable = [info.id for info in self.available()]
+        if not usable:
+            return None
+        provider = self._default_provider if self._default_provider in usable else usable[0]
+        models = self._models(provider)
         return provider, self._default_model if self._default_model in models else models[0]
 
     def resolve(self, provider: str | None, model: str | None) -> Choice:
@@ -84,11 +95,13 @@ class LLMRegistry:
             )
         if provider not in self._clients:
             raise LLMConfigError(f"{info.label} isn't configured. Set {_KEY_NAMES[provider]}.")
-        model = model or info.models[0]
-        if model not in info.models:
+        models = self._models(provider)
+        if not models:
+            raise LLMConfigError(f"{info.label} isn't offered here.")
+        model = model or models[0]
+        if model not in models:
             raise LLMConfigError(
-                f"Model '{model}' isn't offered for {info.label}. Choose from: "
-                f"{', '.join(info.models)}."
+                f"Model '{model}' isn't offered for {info.label}. Choose from: {', '.join(models)}."
             )
         return Choice(provider, model, self._clients[provider])
 
@@ -107,4 +120,6 @@ def get_llm_registry() -> LLMRegistry:
         clients["gemini"] = GeminiChat(key)
     if key := settings.openai_api_key.get_secret_value():
         clients["openai"] = OpenAIChat(key)
-    return LLMRegistry(clients, settings.llm_provider, settings.llm_model)
+    return LLMRegistry(
+        clients, settings.llm_provider, settings.llm_model, allowed=settings.allowed_models
+    )

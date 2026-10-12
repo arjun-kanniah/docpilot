@@ -18,7 +18,7 @@ The LLM provider is switchable per request.
 | Search | PostgreSQL + [pgvector](https://github.com/pgvector/pgvector) |
 | LLMs | Claude, OpenAI and Gemini behind one provider interface |
 | Tooling | [mise](https://mise.jdx.dev) (toolchain), [just](https://just.systems) (tasks), dev container, GitHub Actions |
-| Cloud | Google Cloud Run + Cloud SQL, provisioned with Terraform (planned) |
+| Cloud | Google Cloud Run, Neon serverless Postgres, Terraform, deploys from GitHub Actions |
 
 ## Quick start
 
@@ -115,14 +115,56 @@ that drops below 90%. The grader is checked first: it passes the reference answe
 "I don't know". This small set is a regression check rather than a benchmark. See
 [the results and their caveats](demo/eval-results/).
 
+## Deploying
+
+The public demo runs on Google Cloud Run with a [Neon](https://neon.tech) Postgres database.
+Both scale to zero, so an idle demo costs nothing.
+
+```mermaid
+flowchart LR
+    U[Browser] --> R["Cloud Run<br/>API + web app + embedding model"]
+    R --> N[("Neon Postgres<br/>+ pgvector")]
+    R --> L["Claude · OpenAI · Gemini"]
+    S[Secret Manager] -. keys and database URL .-> R
+    G[GitHub Actions] -- "Workload Identity Federation<br/>(no key files)" --> A[Artifact Registry] --> R
+```
+
+- **One container** serves the API and the built web app, with the embedding model baked in so
+  cold starts never download it ([`Dockerfile`](Dockerfile)).
+- **Every push to `main`** that passes CI builds the image, runs a migration job (which also
+  loads the demo PDF), deploys a new revision and smoke-tests it.
+- **[`infra/`](infra/)** (Terraform) owns the service, the migration job, least-privilege service
+  accounts, GitHub's deploy access (limited to this repo's `main` branch) and a budget alert.
+  Secret values are stored with `just secret`, so they never reach code or Terraform state.
+
+**Demo mode** (`DOCPILOT_DEMO_MODE=true`) guards the public URL: the document library is
+read-only, only cheap models are offered, each visitor gets 20 questions an hour, and
+instances are capped at two. The demo's API keys also have spend limits set at each provider.
+
+One-time setup, using a dedicated gcloud profile named `docpilot`:
+
+```bash
+just infra-bootstrap                 # APIs, Terraform state bucket, terraform init
+just secret database-url             # Neon connection string; likewise anthropic-api-key,
+                                     # openai-api-key and gemini-api-key
+cp infra/terraform.tfvars.example infra/terraform.tfvars   # then fill it in
+just infra apply                     # everything else
+```
+
+Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER` and
+`GCP_DEPLOY_SA` from `just infra output`, and the next push to `main` deploys.
+
 ## Project layout
 
 ```
-backend/    FastAPI service (src/docpilot), Alembic migrations, tests
-frontend/   React + TypeScript web app
+backend/        FastAPI service (src/docpilot), Alembic migrations, tests
+frontend/       React + TypeScript web app
+demo/           fictional knowledge base, evaluation set and results
+infra/          Terraform for Google Cloud
+Dockerfile      production image (API + web app + embedding model)
 .devcontainer/  reproducible dev environment
-justfile    task runner: setup, dev, lint, test
-mise.toml   pinned toolchain
+justfile        task runner: setup, dev, lint, test, eval, infra
+mise.toml       pinned toolchain
 ```
 
 ## Roadmap
@@ -133,7 +175,7 @@ mise.toml   pinned toolchain
 - [x] Q&A: retrieve passages, stream answers with citations
 - [x] Provider switch: Claude, OpenAI and Gemini behind one interface, per request
 - [x] Evaluation: a question set with graded answers; retrieval checked in CI
-- [ ] Deploy: Cloud Run + Cloud SQL via Terraform, with spend guardrails
+- [ ] Deploy: Cloud Run + Neon via Terraform, with spend guardrails (built; going live)
 - [ ] Agent mode: multi-step research across documents
 
 ## License

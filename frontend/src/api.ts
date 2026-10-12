@@ -1,4 +1,4 @@
-export type Health = { status: string; version: string; env: string }
+export type Health = { status: string; version: string; env: string; demo: boolean }
 
 export type DocumentInfo = {
   id: string

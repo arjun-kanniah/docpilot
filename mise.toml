@@ -4,3 +4,4 @@
 node = "24"
 uv = "0.12"
 just = "1.58"
+terraform = "1.15"

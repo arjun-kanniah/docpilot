@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = Field(SecretStr(""), validation_alias="GEMINI_API_KEY")
     openai_api_key: SecretStr = Field(SecretStr(""), validation_alias="OPENAI_API_KEY")
 
+    # Public demo: read-only library, a narrower model list, and question limits
+    demo_mode: bool = False
+    allowed_models: list[str] | None = None  # e.g. '["claude-haiku-5-5"]'; None allows all
+    demo_questions_per_hour: int = 20  # per visitor
+    demo_questions_per_day: int = 500  # per running instance
+
+    # Built web app to serve from the API (set in the production image)
+    static_dir: Path | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

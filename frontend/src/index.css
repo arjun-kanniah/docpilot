@@ -123,6 +123,19 @@ h3 {
   text-align: center;
 }
 
+.demo-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+.demo-note a {
+  color: var(--accent);
+}
+
 .hint {
   margin: 0;
   font-size: 0.8rem;

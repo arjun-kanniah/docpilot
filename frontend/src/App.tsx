@@ -184,6 +184,7 @@ function App() {
         </div>
         <DocumentsPanel
           documents={documents}
+          readOnly={health?.demo ?? false}
           uploading={uploading}
           notice={notice}
           onUpload={(files) => void handleUpload(files)}

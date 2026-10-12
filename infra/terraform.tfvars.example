@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id      = "your-project-id"
+billing_account = "XXXXXX-XXXXXX-XXXXXX" # gcloud billing accounts list
+# monthly_budget = 20                    # in the billing account's currency
