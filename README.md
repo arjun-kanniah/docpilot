@@ -6,8 +6,9 @@
 Markdown, and DocPilot retrieves the relevant passages and answers with sources you can check.
 The LLM provider is switchable per request.
 
-> **Status:** early development. Ingestion, semantic search and streamed answers with citations
-> work today. See the [roadmap](#roadmap).
+**[Try the live demo](https://docpilot-pjdlxrzqoq-ul.a.run.app)**: ask about a fictional
+company's knowledge base (read-only, cheap models, rate-limited). See [Deploying](#deploying)
+for how it runs.
 
 ## Stack
 
@@ -175,7 +176,7 @@ mise.toml       pinned toolchain
 - [x] Q&A: retrieve passages, stream answers with citations
 - [x] Provider switch: Claude, OpenAI and Gemini behind one interface, per request
 - [x] Evaluation: a question set with graded answers; retrieval checked in CI
-- [ ] Deploy: Cloud Run + Neon via Terraform, with spend guardrails (built; going live)
+- [x] Deploy: Cloud Run + Neon via Terraform, deployed from CI, with spend guardrails
 - [ ] Agent mode: multi-step research across documents
 
 ## License
