@@ -65,6 +65,8 @@ resource "google_service_account" "runtime" {
   account_id   = "docpilot-run"
   display_name = "DocPilot runtime"
   description  = "Runs the Cloud Run service and migration job. Reads only DocPilot's secrets."
+
+  depends_on = [google_project_service.apis]
 }
 
 data "google_secret_manager_secret" "app" {
@@ -214,6 +216,8 @@ resource "google_service_account" "deploy" {
   account_id   = "docpilot-deploy"
   display_name = "DocPilot deploy (GitHub Actions)"
   description  = "Pushes images and deploys DocPilot. Usable only from the main branch of the repo."
+
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_iam_workload_identity_pool" "github" {
