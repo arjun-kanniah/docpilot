@@ -44,5 +44,13 @@ test: db
     cd backend && uv run pytest
     cd frontend && npm test && npm run build
 
+# Score retrieval on the demo eval set (free: local embeddings, no API keys)
+eval-retrieval: db
+    cd backend && uv run python -m docpilot.evaluation retrieval --min-hit-rate 0.9
+
+# Answer and grade the demo eval set (paid API calls). e.g. just eval --model claude-haiku-5-5
+eval *args: db
+    cd backend && uv run python -m docpilot.evaluation answers {{args}}
+
 # Everything CI runs
-check: lint test
+check: lint test eval-retrieval

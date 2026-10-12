@@ -2,25 +2,18 @@ import hashlib
 import math
 import re
 from collections.abc import Iterator, Sequence
-from pathlib import Path
 
-import psycopg
 import pytest
-from alembic import command
-from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from docpilot.config import get_settings
-from docpilot.db import get_session, sqlalchemy_url
+from docpilot.db import get_session
+from docpilot.dbsetup import prepare_database
 from docpilot.embeddings import EMBEDDING_DIM, get_embedder
 from docpilot.llm.base import Usage
 from docpilot.llm.providers import LLMRegistry, get_llm_registry
 from docpilot.main import app
-
-BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
 class FakeEmbedder:
@@ -62,20 +55,7 @@ class FakeChat:
 @pytest.fixture(scope="session")
 def test_db_url() -> str:
     """A separate database next to the dev one, migrated to the latest schema."""
-    url = make_url(sqlalchemy_url(get_settings().database_url)).set(database="docpilot_test")
-    admin = url.set(drivername="postgresql", database="postgres")
-    with psycopg.connect(admin.render_as_string(hide_password=False), autocommit=True) as conn:
-        exists = conn.execute(
-            "SELECT 1 FROM pg_database WHERE datname = 'docpilot_test'"
-        ).fetchone()
-        if not exists:
-            conn.execute("CREATE DATABASE docpilot_test")
-
-    rendered = url.render_as_string(hide_password=False)
-    config = Config(str(BACKEND_DIR / "alembic.ini"))
-    config.set_main_option("sqlalchemy.url", rendered)
-    command.upgrade(config, "head")
-    return rendered
+    return prepare_database("docpilot_test")
 
 
 @pytest.fixture

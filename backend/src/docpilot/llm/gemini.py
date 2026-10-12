@@ -10,7 +10,12 @@ class GeminiChat:
     """Gemini via the official Google GenAI SDK."""
 
     def __init__(self, api_key: str) -> None:
-        self._client = genai.Client(api_key=api_key)
+        # Retry rate limits and overloads with backoff (about 15s at most): the free tier allows
+        # only a few requests a minute, and busy models return 503 now and then.
+        retry = types.HttpRetryOptions(attempts=4, initial_delay=2.0, max_delay=30.0)
+        self._client = genai.Client(
+            api_key=api_key, http_options=types.HttpOptions(retry_options=retry)
+        )
 
     def stream(
         self, *, model: str, system: str, prompt: str, max_tokens: int

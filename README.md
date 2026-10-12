@@ -93,6 +93,24 @@ Each provider wraps its official SDK behind one small streaming interface
 
 Interactive API docs are at http://localhost:8000/docs while `just dev-api` is running.
 
+## Evaluation
+
+[`demo/`](demo/) holds a fictional company knowledge base and 21 questions with reference
+answers, including two the document can't answer. `just eval` runs them through the same
+prompt and streaming path as the app, and `claude-opus-5-5` grades each answer against its
+reference with a structured verdict. Retrieval and citations are scored in code.
+
+| Answering model | Correct | Declined when it should | Cites the right page | Cost per question |
+|---|---|---|---|---|
+| Claude Opus 5.5 | 19/19 | 2/2 | 100% | ~$0.013 |
+| Claude Haiku 5.5 | 19/19 | 2/2 | 100% | ~$0.0003 |
+| Gemini 3.5 Flash-Lite | 19/19 | 2/2 | 100% | free tier |
+
+Retrieval finds the right page for every question (mean reciprocal rank 0.97), and CI fails if
+that drops below 90%. The grader is checked first: it passes the reference answers and fails
+"I don't know". This small set is a regression check rather than a benchmark. See
+[the results and their caveats](demo/eval-results/).
+
 ## Project layout
 
 ```
@@ -111,7 +129,7 @@ mise.toml   pinned toolchain
 - [x] Q&A: retrieve passages, stream answers with citations
 - [x] Provider switch: Claude ⇄ Gemini behind one interface, per request
 - [ ] OpenAI provider
-- [ ] Evaluation: a question set with scored answers, run in CI
+- [x] Evaluation: a question set with graded answers; retrieval checked in CI
 - [ ] Deploy: Cloud Run + Cloud SQL via Terraform, with spend guardrails
 - [ ] Agent mode: multi-step research across documents
 

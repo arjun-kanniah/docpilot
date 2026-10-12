@@ -12,6 +12,9 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Evaluation run output (reports worth keeping are copied into demo/)
+eval-runs/
+
 # Node
 node_modules/
 dist/
