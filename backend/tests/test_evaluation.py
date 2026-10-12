@@ -53,6 +53,7 @@ def test_eval_set_is_consistent() -> None:
     for i in items:
         assert (i.source_page is not None) == i.answerable, i.id
         assert (i.category == "negative") == (not i.answerable), i.id
+        assert i.source_page not in i.also_on_pages, i.id
 
 
 def test_eval_csv_matches_json() -> None:
@@ -73,6 +74,15 @@ def test_retrieval_rank_and_citation_checks() -> None:
 
     case.cited = [1, 9]  # wrong page, and a number with no matching source
     assert case.cites_source_page is False
+
+
+def test_evidence_on_another_page_also_counts() -> None:
+    question = EvalItem("q", "question", "answer", 2, "factual", "easy", True, also_on_pages=(5,))
+    case = CaseResult(question, hits=[hit(5), hit(2)])
+    case.answer, case.cited = "It is [1].", [1]
+
+    assert case.retrieval_rank == 1
+    assert case.cites_source_page is True
 
 
 def test_answer_and_grade_scores_and_summarizes() -> None:

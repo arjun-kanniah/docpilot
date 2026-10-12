@@ -8,12 +8,20 @@ graded by `claude-opus-5-5` against the reference answers.
 |---|---|---|---|---|---|
 | `claude-opus-5-5` | 19 | 2 | 100% | 2.3 s | ~$0.013 |
 | `claude-haiku-5-5` | 19 | 2 | 100% | 1.4 s | ~$0.0003 |
+| `gpt-6.1-sol` | 19 | 2 | 100% | 1.9 s | ~$0.003 |
+| `gpt-6-luna` | 19 | 2 | 100% | 1.1 s | ~$0.0002 |
 | `gemini-3.5-flash-lite` | 19 | 2 | 100% | 0.7 s | free tier |
 
 Retrieval found the expected page in the top 6 for all 19 answerable questions (mean
-reciprocal rank 0.97). Full per-question reports, with the grader's reasons:
+reciprocal rank 1.00). Full per-question reports, with the grader's reasons:
 [Opus](anthropic-claude-opus-5-5.md), [Haiku](anthropic-claude-haiku-5-5.md),
+[GPT-6.1 Sol](openai-gpt-6.1-sol.md), [GPT-6 Luna](openai-gpt-6-luna.md),
 [Gemini](gemini-gemini-3.5-flash-lite.md).
+
+Three questions (q08, q09, q15) have their evidence on two pages, listed in `also_on_pages`;
+retrieving or citing either page counts. The reports were re-scored with that rule after the
+GPT-6.1 Sol run correctly cited the FAQ page for q09 and was marked wrong. Grades were
+unchanged; only the retrieval rank and citation checks moved.
 
 ## Checking the grader
 

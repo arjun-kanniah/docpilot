@@ -16,7 +16,7 @@ The LLM provider is switchable per request.
 | API | Python 3.12, FastAPI, managed with [uv](https://docs.astral.sh/uv/) |
 | Web | React 19 + TypeScript, Vite |
 | Search | PostgreSQL + [pgvector](https://github.com/pgvector/pgvector) |
-| LLMs | Claude and Gemini behind one provider interface; OpenAI planned |
+| LLMs | Claude, OpenAI and Gemini behind one provider interface |
 | Tooling | [mise](https://mise.jdx.dev) (toolchain), [just](https://just.systems) (tasks), dev container, GitHub Actions |
 | Cloud | Google Cloud Run + Cloud SQL, provisioned with Terraform (planned) |
 
@@ -78,13 +78,15 @@ never loaded, so a malicious document can't inject script or leak data through a
 
 ### Choosing a model
 
-Providers are enabled by their API keys in `.env` (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
+Providers are enabled by their API keys in `.env` (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GEMINI_API_KEY`).
 The default is `DOCPILOT_LLM_PROVIDER` / `DOCPILOT_LLM_MODEL`, and a request (or the picker
 in the UI) can choose any allowlisted model:
 
 | Provider | Models (first is the default) |
 |---|---|
 | Claude | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` |
+| OpenAI | `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-astra` |
 | Gemini | `gemini-3.8-flash`, `gemini-3.5-flash-lite` |
 
 The allowlist lives in [`backend/src/docpilot/llm/providers.py`](backend/src/docpilot/llm/providers.py).
@@ -104,9 +106,11 @@ reference with a structured verdict. Retrieval and citations are scored in code.
 |---|---|---|---|---|
 | Claude Opus 5.5 | 19/19 | 2/2 | 100% | ~$0.013 |
 | Claude Haiku 5.5 | 19/19 | 2/2 | 100% | ~$0.0003 |
+| GPT-6.1 Sol | 19/19 | 2/2 | 100% | ~$0.003 |
+| GPT-6 Luna | 19/19 | 2/2 | 100% | ~$0.0002 |
 | Gemini 3.5 Flash-Lite | 19/19 | 2/2 | 100% | free tier |
 
-Retrieval finds the right page for every question (mean reciprocal rank 0.97), and CI fails if
+Retrieval finds the right page for every question (mean reciprocal rank 1.00), and CI fails if
 that drops below 90%. The grader is checked first: it passes the reference answers and fails
 "I don't know". This small set is a regression check rather than a benchmark. See
 [the results and their caveats](demo/eval-results/).
@@ -127,8 +131,7 @@ mise.toml   pinned toolchain
 - [x] Ingestion: upload PDF/Markdown/text → chunk → embed locally → store in pgvector
 - [x] Semantic search over chunks, with page references
 - [x] Q&A: retrieve passages, stream answers with citations
-- [x] Provider switch: Claude ⇄ Gemini behind one interface, per request
-- [ ] OpenAI provider
+- [x] Provider switch: Claude, OpenAI and Gemini behind one interface, per request
 - [x] Evaluation: a question set with graded answers; retrieval checked in CI
 - [ ] Deploy: Cloud Run + Cloud SQL via Terraform, with spend guardrails
 - [ ] Agent mode: multi-step research across documents

@@ -19,9 +19,14 @@ CATALOG: dict[str, ProviderInfo] = {
         "anthropic", "Claude", ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
     ),
     "gemini": ProviderInfo("gemini", "Gemini", ("gemini-3.8-flash", "gemini-3.5-flash-lite")),
+    "openai": ProviderInfo("openai", "OpenAI", ("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra")),
 }
 
-_KEY_NAMES = {"anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY"}
+_KEY_NAMES = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
 
 
 class LLMConfigError(ValueError):
@@ -67,7 +72,7 @@ class LLMRegistry:
             fallback = self.default()
             if fallback is None:
                 raise LLMConfigError(
-                    "No LLM provider is configured. Set ANTHROPIC_API_KEY or GEMINI_API_KEY."
+                    f"No LLM provider is configured. Set one of: {', '.join(_KEY_NAMES.values())}."
                 )
             provider = fallback[0]
             model = model or fallback[1]
@@ -92,6 +97,7 @@ class LLMRegistry:
 def get_llm_registry() -> LLMRegistry:
     from docpilot.llm.claude import ClaudeChat  # SDK imports are deferred until first use
     from docpilot.llm.gemini import GeminiChat
+    from docpilot.llm.openai_chat import OpenAIChat
 
     settings = get_settings()
     clients: dict[str, ChatModel] = {}
@@ -99,4 +105,6 @@ def get_llm_registry() -> LLMRegistry:
         clients["anthropic"] = ClaudeChat(key)
     if key := settings.gemini_api_key.get_secret_value():
         clients["gemini"] = GeminiChat(key)
+    if key := settings.openai_api_key.get_secret_value():
+        clients["openai"] = OpenAIChat(key)
     return LLMRegistry(clients, settings.llm_provider, settings.llm_model)

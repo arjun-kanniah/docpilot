@@ -2,7 +2,7 @@
 
 21 questions over 11 chunks; embeddings BAAI/bge-small-en-v1.5; chunks 1000 chars with 150 overlap; top 6. Graded by claude-opus-5-5.
 
-- Retrieval: expected page in top 6 for 100% (MRR 0.97)
+- Retrieval: expected page in top 6 for 100% (MRR 1.00)
 - Answers: 19 correct, 0 partial, 0 incorrect of 19 (score 100%); 0 declined wrongly
 - Abstention: declined 2 of 2 questions the document can't answer
 - Citations: 100% of answers cite the expected page
@@ -25,7 +25,7 @@
 | q12 | conditional | How long is the warranty if I register my station in the app within 30 days of purchase? | #1 | correct | yes | The system answer states the warranty is extended to 3 years, up from the standard 2 years, which matches the reference. The extra details about coverage don't contradict it. |
 | q13 | factual | What is the return window for hardware bought directly from Aurora? | #1 | correct | yes | The system states the 45-day window from delivery, the full refund, and the resalable-condition requirement, matching the reference. The extra details do not contradict it. |
 | q14 | procedural | How do I reset a SkyNode station to factory settings? | #1 | correct | yes | The system answer includes every key fact from the reference: hold the hub button for 10 seconds, the light flashes red, and the hub restarts into setup mode. The extra detail about reconfiguring in the Aurora app does not contradict the reference. |
-| q15 | factual | What type of batteries do the outdoor sensor modules use? | #2 | correct | yes | The system correctly states two AA lithium batteries, matching the reference; the extra detail about cold-weather performance does not contradict it. |
+| q15 | factual | What type of batteries do the outdoor sensor modules use? | #1 | correct | yes | The system correctly states two AA lithium batteries, matching the reference; the extra detail about cold-weather performance does not contradict it. |
 | q16 | conditional | What discount do schools and non-profits receive? | #1 | correct | yes | The system answer gives the 40% discount on the Plus and Pro plans and on hardware purchases of five or more stations, and notes that verification is required. The application details it adds do not contradict the reference. |
 | q17 | comparative | I'm a Pro-plan subscriber whose device needs repair. What do I get while I wait, and how long does a repair usually take? | #1 | correct | yes | The system states both key facts, a loaner unit and a 10-business-day turnaround counted from when Aurora receives the device. Its extra details don't contradict the reference. |
 | q18 | comparative | Can I still see my data during an internet outage, and how far back? | #1 | correct | yes | The system answer says yes, notes that the app reads from the hub over the local network, and gives the correct storage durations (7/30/90 days). The extra details about cellular backup do not contradict the reference. |

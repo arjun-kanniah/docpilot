@@ -157,8 +157,8 @@ function App() {
   const docCount = `${documents.length} indexed document${documents.length === 1 ? '' : 's'}`
   const emptyMessage =
     models !== null && models.providers.length === 0
-      ? 'No LLM provider is configured. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env ' +
-        'and restart the API.'
+      ? 'No LLM provider is configured. Add ANTHROPIC_API_KEY, GEMINI_API_KEY or ' +
+        'OPENAI_API_KEY to .env and restart the API.'
       : documents.length === 0
         ? 'Upload a PDF, Markdown or text file, then ask a question about it.'
         : `Answers come from your ${docCount}, with citations you can check.`

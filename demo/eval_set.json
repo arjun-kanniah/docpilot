@@ -1,6 +1,6 @@
 {
   "dataset": "aurora_instruments_rag_eval",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Evaluation set for a RAG app (DocPilot) over the Aurora Instruments knowledge base (aurora_knowledge_base.pdf). Schema is compatible with common RAG evaluation frameworks (e.g. RAGAS): each item has a question, a reference answer (ground_truth), the supporting snippet (reference_context), and metadata. 'answerable: false' items are negative cases used to test whether the system correctly abstains instead of hallucinating.",
   "source_document": "aurora_knowledge_base.pdf",
   "fields": {
@@ -9,6 +9,7 @@
     "ground_truth": "expected/reference answer",
     "reference_context": "the passage in the source document that supports the answer",
     "source_page": "page of the source document containing the evidence",
+    "also_on_pages": "other pages that state the same evidence (optional); retrieving or citing them also counts",
     "category": "factual | comparative | numeric | procedural | conditional | inference | negative",
     "difficulty": "easy | medium | hard",
     "answerable": "true if the answer is present in the document; false for out-of-scope negatives"
@@ -90,6 +91,9 @@
       "ground_truth": "The SkyNode Max, because it includes cellular backup and can operate without Wi-Fi. The Lite and Pro require a 2.4 GHz Wi-Fi connection to sync to the cloud.",
       "reference_context": "The SkyNode Max includes cellular backup and can operate without Wi-Fi. The Lite and Pro models require a 2.4 GHz Wi-Fi connection to sync to the cloud.",
       "source_page": 5,
+      "also_on_pages": [
+        2
+      ],
       "category": "comparative",
       "difficulty": "medium",
       "answerable": true
@@ -100,6 +104,9 @@
       "ground_truth": "Temperature is accurate to within plus or minus 0.3 degrees Celsius.",
       "reference_context": "Temperature readings are accurate to within +/-0.3 C.",
       "source_page": 2,
+      "also_on_pages": [
+        5
+      ],
       "category": "factual",
       "difficulty": "easy",
       "answerable": true
@@ -160,6 +167,9 @@
       "ground_truth": "Each outdoor sensor module uses two AA lithium batteries.",
       "reference_context": "Each outdoor sensor module is powered by two AA lithium batteries.",
       "source_page": 2,
+      "also_on_pages": [
+        5
+      ],
       "category": "factual",
       "difficulty": "easy",
       "answerable": true

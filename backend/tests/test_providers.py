@@ -27,8 +27,15 @@ def test_no_configured_providers_is_a_clear_error() -> None:
         registry.resolve(None, None)
 
 
+def test_unconfigured_provider_names_its_key() -> None:
+    registry = LLMRegistry({"anthropic": FakeChat()}, default_provider="anthropic")
+
+    with pytest.raises(LLMConfigError, match="OPENAI_API_KEY"):
+        registry.resolve("openai", "gpt-6-luna")
+
+
 def test_unknown_provider_is_rejected() -> None:
     registry = LLMRegistry({"anthropic": FakeChat()}, default_provider="anthropic")
 
     with pytest.raises(LLMConfigError, match="Unknown provider"):
-        registry.resolve("openai", None)
+        registry.resolve("mistral", None)

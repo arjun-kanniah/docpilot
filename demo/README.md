@@ -31,6 +31,7 @@ Upload `aurora_knowledge_base.pdf` and ask the questions in
   "ground_truth": "The SkyNode Pro costs $299.",
   "reference_context": "Price (USD): SkyNode Lite $149, SkyNode Pro $299, SkyNode Max $499.",
   "source_page": 2,          // null when the answer isn't in the document
+  "also_on_pages": [5],      // optional: other pages that state the same evidence
   "category": "factual",     // factual | comparative | numeric | procedural | conditional | inference | negative
   "difficulty": "easy",      // easy | medium | hard
   "answerable": true         // false: the right response is to say the document doesn't say

@@ -35,12 +35,24 @@ class EvalItem:
     category: str
     difficulty: str
     answerable: bool
+    also_on_pages: tuple[int, ...] = ()  # other pages stating the same evidence
+
+    @property
+    def evidence_pages(self) -> set[int]:
+        """Pages whose passages count as the right evidence for this question."""
+        if self.source_page is None:
+            return set()
+        return {self.source_page, *self.also_on_pages}
 
 
 def load_eval_set(path: Path = EVAL_SET) -> list[EvalItem]:
     data = json.loads(path.read_text())
     return [
-        EvalItem(**{f: item[f] for f in EvalItem.__dataclass_fields__}) for item in data["items"]
+        EvalItem(
+            **{f: item[f] for f in EvalItem.__dataclass_fields__ if f != "also_on_pages"},
+            also_on_pages=tuple(item.get("also_on_pages", ())),
+        )
+        for item in data["items"]
     ]
 
 
@@ -66,18 +78,17 @@ class CaseResult:
 
     @property
     def retrieval_rank(self) -> int | None:
-        """1-based rank of the first passage from the expected page, if it was retrieved."""
-        pages = [hit.page for hit in self.hits]
-        page = self.item.source_page
-        return pages.index(page) + 1 if page is not None and page in pages else None
+        """1-based rank of the first passage from an evidence page, if one was retrieved."""
+        evidence = self.item.evidence_pages
+        return next((i for i, hit in enumerate(self.hits, 1) if hit.page in evidence), None)
 
     @property
     def cites_source_page(self) -> bool | None:
-        """Whether the answer cites a passage from the expected page (answerable cases only)."""
+        """Whether the answer cites a passage from an evidence page (answerable cases only)."""
         if self.answer is None or self.item.source_page is None or not self.item.answerable:
             return None
         pages = {self.hits[n - 1].page for n in self.cited if 0 < n <= len(self.hits)}
-        return self.item.source_page in pages
+        return bool(pages & self.item.evidence_pages)
 
 
 def index_corpus(

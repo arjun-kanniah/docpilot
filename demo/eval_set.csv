@@ -1,22 +1,22 @@
-id,question,ground_truth,source_page,category,difficulty,answerable
-q01,When was Aurora Instruments founded?,Aurora Instruments was founded in 2019.,1,factual,easy,True
-q02,Where is Aurora Instruments headquartered?,"Its headquarters are in Boulder, Colorado, USA.",1,factual,easy,True
-q03,Who founded the company?,Dr. Elena Varga and Marcus Reed.,1,factual,easy,True
-q04,How many people does Aurora Instruments employ as of 2026?,112 employees.,1,factual,easy,True
-q05,How much does the SkyNode Pro cost?,The SkyNode Pro costs $299.,2,factual,easy,True
-q06,How many sensors does the SkyNode Max include?,The SkyNode Max has 14 sensors.,2,factual,easy,True
-q07,What is the price difference between the cheapest and most expensive SkyNode models?,The difference is $350 (SkyNode Max at $499 minus SkyNode Lite at $149).,2,numeric,medium,True
-q08,Which SkyNode model should I choose if my location has no Wi-Fi coverage?,"The SkyNode Max, because it includes cellular backup and can operate without Wi-Fi. The Lite and Pro require a 2.4 GHz Wi-Fi connection to sync to the cloud.",5,comparative,medium,True
-q09,How accurate are the temperature readings?,Temperature is accurate to within plus or minus 0.3 degrees Celsius.,2,factual,easy,True
-q10,"What is the annual price of the Pro cloud plan, and roughly how much does paying annually save versus monthly?","The Pro plan is $129 per year. The document says paying annually saves roughly 18% compared with paying monthly; for Pro specifically, $129 against $155.88 ($12.99 x 12) is about 17%. Either figure is acceptable.",3,numeric,medium,True
-q11,Which cloud plan do I need for API access and CSV data export?,The Pro plan. It is the only plan that includes public API access and CSV/data export.,3,factual,easy,True
-q12,How long is the warranty if I register my station in the app within 30 days of purchase?,The warranty is extended to 3 years (from the standard 2 years) if registered within 30 days.,4,conditional,medium,True
-q13,What is the return window for hardware bought directly from Aurora?,"45 days from delivery, for a full refund if the item is in resalable condition.",4,factual,easy,True
-q14,How do I reset a SkyNode station to factory settings?,Press and hold the button on the central hub for 10 seconds until the status light flashes red; the hub restarts into setup mode.,5,procedural,easy,True
-q15,What type of batteries do the outdoor sensor modules use?,Each outdoor sensor module uses two AA lithium batteries.,2,factual,easy,True
-q16,What discount do schools and non-profits receive?,"A 40% discount on the Plus and Pro plans and on hardware purchases of five or more stations, after verification.",3,conditional,medium,True
-q17,"I'm a Pro-plan subscriber whose device needs repair. What do I get while I wait, and how long does a repair usually take?","Pro-plan subscribers are offered a loaner unit while their device is repaired, and the typical repair turnaround is 10 business days from when Aurora receives the device.",4,comparative,hard,True
-q18,"Can I still see my data during an internet outage, and how far back?","Yes. The hub stores recent readings locally (7 days on Lite, 30 days on Pro, 90 days on Max) and the app can read directly from the hub over the local network while the internet is down.",5,comparative,medium,True
-q19,What colors is the SkyNode available in?,The document does not specify any color options for the SkyNode. The system should say the information is not available rather than guessing.,,negative,medium,False
-q20,Does Aurora Instruments sell a home security camera?,"No. Aurora sells a single product line, the SkyNode home weather station, and no security camera is mentioned.",1,inference,medium,True
-q21,Who is the current CEO of Aurora Instruments?,The document names the two founders (Dr. Elena Varga and Marcus Reed) but does not state who holds the CEO title. The system should not assert a CEO that the document does not name.,,negative,hard,False
+id,question,ground_truth,source_page,also_on_pages,category,difficulty,answerable
+q01,When was Aurora Instruments founded?,Aurora Instruments was founded in 2019.,1,,factual,easy,True
+q02,Where is Aurora Instruments headquartered?,"Its headquarters are in Boulder, Colorado, USA.",1,,factual,easy,True
+q03,Who founded the company?,Dr. Elena Varga and Marcus Reed.,1,,factual,easy,True
+q04,How many people does Aurora Instruments employ as of 2026?,112 employees.,1,,factual,easy,True
+q05,How much does the SkyNode Pro cost?,The SkyNode Pro costs $299.,2,,factual,easy,True
+q06,How many sensors does the SkyNode Max include?,The SkyNode Max has 14 sensors.,2,,factual,easy,True
+q07,What is the price difference between the cheapest and most expensive SkyNode models?,The difference is $350 (SkyNode Max at $499 minus SkyNode Lite at $149).,2,,numeric,medium,True
+q08,Which SkyNode model should I choose if my location has no Wi-Fi coverage?,"The SkyNode Max, because it includes cellular backup and can operate without Wi-Fi. The Lite and Pro require a 2.4 GHz Wi-Fi connection to sync to the cloud.",5,2,comparative,medium,True
+q09,How accurate are the temperature readings?,Temperature is accurate to within plus or minus 0.3 degrees Celsius.,2,5,factual,easy,True
+q10,"What is the annual price of the Pro cloud plan, and roughly how much does paying annually save versus monthly?","The Pro plan is $129 per year. The document says paying annually saves roughly 18% compared with paying monthly; for Pro specifically, $129 against $155.88 ($12.99 x 12) is about 17%. Either figure is acceptable.",3,,numeric,medium,True
+q11,Which cloud plan do I need for API access and CSV data export?,The Pro plan. It is the only plan that includes public API access and CSV/data export.,3,,factual,easy,True
+q12,How long is the warranty if I register my station in the app within 30 days of purchase?,The warranty is extended to 3 years (from the standard 2 years) if registered within 30 days.,4,,conditional,medium,True
+q13,What is the return window for hardware bought directly from Aurora?,"45 days from delivery, for a full refund if the item is in resalable condition.",4,,factual,easy,True
+q14,How do I reset a SkyNode station to factory settings?,Press and hold the button on the central hub for 10 seconds until the status light flashes red; the hub restarts into setup mode.,5,,procedural,easy,True
+q15,What type of batteries do the outdoor sensor modules use?,Each outdoor sensor module uses two AA lithium batteries.,2,5,factual,easy,True
+q16,What discount do schools and non-profits receive?,"A 40% discount on the Plus and Pro plans and on hardware purchases of five or more stations, after verification.",3,,conditional,medium,True
+q17,"I'm a Pro-plan subscriber whose device needs repair. What do I get while I wait, and how long does a repair usually take?","Pro-plan subscribers are offered a loaner unit while their device is repaired, and the typical repair turnaround is 10 business days from when Aurora receives the device.",4,,comparative,hard,True
+q18,"Can I still see my data during an internet outage, and how far back?","Yes. The hub stores recent readings locally (7 days on Lite, 30 days on Pro, 90 days on Max) and the app can read directly from the hub over the local network while the internet is down.",5,,comparative,medium,True
+q19,What colors is the SkyNode available in?,The document does not specify any color options for the SkyNode. The system should say the information is not available rather than guessing.,,,negative,medium,False
+q20,Does Aurora Instruments sell a home security camera?,"No. Aurora sells a single product line, the SkyNode home weather station, and no security camera is mentioned.",1,,inference,medium,True
+q21,Who is the current CEO of Aurora Instruments?,The document names the two founders (Dr. Elena Varga and Marcus Reed) but does not state who holds the CEO title. The system should not assert a CEO that the document does not name.,,,negative,hard,False

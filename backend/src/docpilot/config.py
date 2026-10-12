@@ -4,11 +4,14 @@ from pathlib import Path
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The project's .env, wherever the process starts. Real environment variables take precedence.
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
-    """Runtime configuration, read from environment variables or a local .env file."""
+    """Runtime configuration, read from environment variables or the project's .env file."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="DOCPILOT_", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILE, env_prefix="DOCPILOT_", extra="ignore")
 
     env: str = "local"
     database_url: str = "postgresql://docpilot:docpilot@localhost:5432/docpilot"
@@ -32,6 +35,7 @@ class Settings(BaseSettings):
     # Provider keys use the SDKs' standard names, without the DOCPILOT_ prefix
     anthropic_api_key: SecretStr = Field(SecretStr(""), validation_alias="ANTHROPIC_API_KEY")
     gemini_api_key: SecretStr = Field(SecretStr(""), validation_alias="GEMINI_API_KEY")
+    openai_api_key: SecretStr = Field(SecretStr(""), validation_alias="OPENAI_API_KEY")
 
 
 @lru_cache
