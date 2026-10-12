@@ -38,6 +38,10 @@ just dev-web          # terminal 2: web app on http://localhost:5173
 
 Run `just` to see every task, and `just check` to run what CI runs.
 
+To try it without your own files, upload [`demo/aurora_knowledge_base.pdf`](demo/), a fictional
+company knowledge base, and ask the questions in
+[`demo/sample_questions.md`](demo/sample_questions.md).
+
 ## How ingestion works
 
 1. **Upload** a PDF, Markdown or text file (up to 20 MB). Re-uploading identical bytes is detected

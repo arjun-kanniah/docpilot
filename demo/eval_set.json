@@ -1,0 +1,228 @@
+{
+  "dataset": "aurora_instruments_rag_eval",
+  "version": "1.1",
+  "description": "Evaluation set for a RAG app (DocPilot) over the Aurora Instruments knowledge base (aurora_knowledge_base.pdf). Schema is compatible with common RAG evaluation frameworks (e.g. RAGAS): each item has a question, a reference answer (ground_truth), the supporting snippet (reference_context), and metadata. 'answerable: false' items are negative cases used to test whether the system correctly abstains instead of hallucinating.",
+  "source_document": "aurora_knowledge_base.pdf",
+  "fields": {
+    "id": "unique identifier",
+    "question": "user query sent to the RAG app",
+    "ground_truth": "expected/reference answer",
+    "reference_context": "the passage in the source document that supports the answer",
+    "source_page": "page of the source document containing the evidence",
+    "category": "factual | comparative | numeric | procedural | conditional | inference | negative",
+    "difficulty": "easy | medium | hard",
+    "answerable": "true if the answer is present in the document; false for out-of-scope negatives"
+  },
+  "items": [
+    {
+      "id": "q01",
+      "question": "When was Aurora Instruments founded?",
+      "ground_truth": "Aurora Instruments was founded in 2019.",
+      "reference_context": "The company was founded in 2019 in Boulder, Colorado, by Dr. Elena Varga and Marcus Reed.",
+      "source_page": 1,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q02",
+      "question": "Where is Aurora Instruments headquartered?",
+      "ground_truth": "Its headquarters are in Boulder, Colorado, USA.",
+      "reference_context": "The company is headquartered in Boulder, Colorado, and operates a second office in Lisbon, Portugal.",
+      "source_page": 1,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q03",
+      "question": "Who founded the company?",
+      "ground_truth": "Dr. Elena Varga and Marcus Reed.",
+      "reference_context": "founded in 2019 in Boulder, Colorado, by Dr. Elena Varga and Marcus Reed.",
+      "source_page": 1,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q04",
+      "question": "How many people does Aurora Instruments employ as of 2026?",
+      "ground_truth": "112 employees.",
+      "reference_context": "As of early 2026, Aurora Instruments employs 112 people.",
+      "source_page": 1,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q05",
+      "question": "How much does the SkyNode Pro cost?",
+      "ground_truth": "The SkyNode Pro costs $299.",
+      "reference_context": "Price (USD): SkyNode Lite $149, SkyNode Pro $299, SkyNode Max $499.",
+      "source_page": 2,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q06",
+      "question": "How many sensors does the SkyNode Max include?",
+      "ground_truth": "The SkyNode Max has 14 sensors.",
+      "reference_context": "Number of sensors: Lite 5, Pro 9, Max 14.",
+      "source_page": 2,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q07",
+      "question": "What is the price difference between the cheapest and most expensive SkyNode models?",
+      "ground_truth": "The difference is $350 (SkyNode Max at $499 minus SkyNode Lite at $149).",
+      "reference_context": "Price (USD): SkyNode Lite $149 ... SkyNode Max $499.",
+      "source_page": 2,
+      "category": "numeric",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q08",
+      "question": "Which SkyNode model should I choose if my location has no Wi-Fi coverage?",
+      "ground_truth": "The SkyNode Max, because it includes cellular backup and can operate without Wi-Fi. The Lite and Pro require a 2.4 GHz Wi-Fi connection to sync to the cloud.",
+      "reference_context": "The SkyNode Max includes cellular backup and can operate without Wi-Fi. The Lite and Pro models require a 2.4 GHz Wi-Fi connection to sync to the cloud.",
+      "source_page": 5,
+      "category": "comparative",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q09",
+      "question": "How accurate are the temperature readings?",
+      "ground_truth": "Temperature is accurate to within plus or minus 0.3 degrees Celsius.",
+      "reference_context": "Temperature readings are accurate to within +/-0.3 C.",
+      "source_page": 2,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q10",
+      "question": "What is the annual price of the Pro cloud plan, and roughly how much does paying annually save versus monthly?",
+      "ground_truth": "The Pro plan is $129 per year. The document says paying annually saves roughly 18% compared with paying monthly; for Pro specifically, $129 against $155.88 ($12.99 x 12) is about 17%. Either figure is acceptable.",
+      "reference_context": "Pro annual price $129, monthly $12.99. Paying annually saves roughly 18% compared with paying monthly.",
+      "source_page": 3,
+      "category": "numeric",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q11",
+      "question": "Which cloud plan do I need for API access and CSV data export?",
+      "ground_truth": "The Pro plan. It is the only plan that includes public API access and CSV/data export.",
+      "reference_context": "CSV / data export and Public API access: available on Pro only.",
+      "source_page": 3,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q12",
+      "question": "How long is the warranty if I register my station in the app within 30 days of purchase?",
+      "ground_truth": "The warranty is extended to 3 years (from the standard 2 years) if registered within 30 days.",
+      "reference_context": "If the product is registered in the Aurora app within 30 days of purchase, the warranty is extended to 3 years at no additional cost.",
+      "source_page": 4,
+      "category": "conditional",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q13",
+      "question": "What is the return window for hardware bought directly from Aurora?",
+      "ground_truth": "45 days from delivery, for a full refund if the item is in resalable condition.",
+      "reference_context": "Hardware purchased directly from Aurora may be returned within 45 days of delivery for a full refund.",
+      "source_page": 4,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q14",
+      "question": "How do I reset a SkyNode station to factory settings?",
+      "ground_truth": "Press and hold the button on the central hub for 10 seconds until the status light flashes red; the hub restarts into setup mode.",
+      "reference_context": "Press and hold the button on the central hub for 10 seconds until the status light flashes red. The hub will restart and return to setup mode.",
+      "source_page": 5,
+      "category": "procedural",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q15",
+      "question": "What type of batteries do the outdoor sensor modules use?",
+      "ground_truth": "Each outdoor sensor module uses two AA lithium batteries.",
+      "reference_context": "Each outdoor sensor module is powered by two AA lithium batteries.",
+      "source_page": 2,
+      "category": "factual",
+      "difficulty": "easy",
+      "answerable": true
+    },
+    {
+      "id": "q16",
+      "question": "What discount do schools and non-profits receive?",
+      "ground_truth": "A 40% discount on the Plus and Pro plans and on hardware purchases of five or more stations, after verification.",
+      "reference_context": "Verified schools and non-profit organizations receive a 40% discount on the Plus and Pro plans and on hardware purchases of five or more stations.",
+      "source_page": 3,
+      "category": "conditional",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q17",
+      "question": "I'm a Pro-plan subscriber whose device needs repair. What do I get while I wait, and how long does a repair usually take?",
+      "ground_truth": "Pro-plan subscribers are offered a loaner unit while their device is repaired, and the typical repair turnaround is 10 business days from when Aurora receives the device.",
+      "reference_context": "The typical repair turnaround is 10 business days... Loaner units are offered to Pro-plan subscribers while their device is being repaired.",
+      "source_page": 4,
+      "category": "comparative",
+      "difficulty": "hard",
+      "answerable": true
+    },
+    {
+      "id": "q18",
+      "question": "Can I still see my data during an internet outage, and how far back?",
+      "ground_truth": "Yes. The hub stores recent readings locally (7 days on Lite, 30 days on Pro, 90 days on Max) and the app can read directly from the hub over the local network while the internet is down.",
+      "reference_context": "The hub stores recent readings locally (7 days on Lite, 30 days on Pro, and 90 days on Max), and the app can read directly from the hub over your local network even when the internet is unavailable.",
+      "source_page": 5,
+      "category": "comparative",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q19",
+      "question": "What colors is the SkyNode available in?",
+      "ground_truth": "The document does not specify any color options for the SkyNode. The system should say the information is not available rather than guessing.",
+      "reference_context": "No supporting context — color options are not mentioned anywhere in the document.",
+      "source_page": null,
+      "category": "negative",
+      "difficulty": "medium",
+      "answerable": false
+    },
+    {
+      "id": "q20",
+      "question": "Does Aurora Instruments sell a home security camera?",
+      "ground_truth": "No. Aurora sells a single product line, the SkyNode home weather station, and no security camera is mentioned.",
+      "reference_context": "Aurora sells a single product line, the SkyNode home weather station, in three models.",
+      "source_page": 1,
+      "category": "inference",
+      "difficulty": "medium",
+      "answerable": true
+    },
+    {
+      "id": "q21",
+      "question": "Who is the current CEO of Aurora Instruments?",
+      "ground_truth": "The document names the two founders (Dr. Elena Varga and Marcus Reed) but does not state who holds the CEO title. The system should not assert a CEO that the document does not name.",
+      "reference_context": "founded in 2019 ... by Dr. Elena Varga and Marcus Reed (no CEO title is stated anywhere).",
+      "source_page": null,
+      "category": "negative",
+      "difficulty": "hard",
+      "answerable": false
+    }
+  ]
+}

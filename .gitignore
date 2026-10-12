@@ -28,3 +28,6 @@ dist/
 !.vscode/extensions.json
 .idea/
 .DS_Store
+
+# Windows "downloaded from the internet" markers, created when files are copied in from Windows
+*:Zone.Identifier
