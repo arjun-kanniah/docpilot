@@ -4,9 +4,9 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "Region for Cloud Run and Artifact Registry. us-east4 sits next to Neon's AWS us-east-1."
+  description = "Region for Cloud Run and Artifact Registry. us-east5 (Columbus) sits next to the Neon database in AWS us-east-2 (Ohio)."
   type        = string
-  default     = "us-east4"
+  default     = "us-east5"
 }
 
 variable "billing_account" {

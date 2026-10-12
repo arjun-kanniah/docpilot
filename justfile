@@ -71,7 +71,7 @@ infra-bootstrap:
     gcloud services enable serviceusage.googleapis.com cloudresourcemanager.googleapis.com \
         cloudbilling.googleapis.com storage.googleapis.com secretmanager.googleapis.com
     if ! gcloud storage buckets describe "gs://${bucket}" >/dev/null 2>&1; then
-        gcloud storage buckets create "gs://${bucket}" --location=us-east4 \
+        gcloud storage buckets create "gs://${bucket}" --location=us-east5 \
             --uniform-bucket-level-access --public-access-prevention
     fi
     gcloud storage buckets update "gs://${bucket}" --versioning
