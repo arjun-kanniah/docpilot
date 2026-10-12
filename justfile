@@ -39,10 +39,10 @@ lint:
 fmt:
     cd backend && uv run ruff check --fix . && uv run ruff format .
 
-# Run tests (against a separate docpilot_test database) and the frontend type-check/build
+# Run tests (backend against a separate docpilot_test database), then the frontend tests and build
 test: db
     cd backend && uv run pytest
-    cd frontend && npm run build
+    cd frontend && npm test && npm run build
 
 # Everything CI runs
 check: lint test

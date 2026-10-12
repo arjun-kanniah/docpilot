@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import {
   api,
   type AskUsage,
@@ -7,6 +7,7 @@ import {
   type ModelsInfo,
   type SearchHit,
 } from './api'
+import { Answer } from './Answer'
 
 const ACCEPTED = '.pdf,.md,.markdown,.txt'
 const MODEL_KEY = 'docpilot.model'
@@ -25,19 +26,6 @@ function saveModelChoice(value: string) {
   } catch {
     // storage unavailable (private mode): the choice just isn't remembered
   }
-}
-
-/** Turn [n] markers in the answer into links to the numbered sources. */
-function withCitations(text: string, sourceCount: number): ReactNode[] {
-  return text.split(/(\[\d+\])/).map((part, i) => {
-    const n = Number(/^\[(\d+)\]$/.exec(part)?.[1])
-    if (!n || n > sourceCount) return part
-    return (
-      <a key={i} className="cite" href={`#source-${n}`} aria-label={`Source ${n}`}>
-        {n}
-      </a>
-    )
-  })
 }
 
 function formatSize(bytes: number): string {
@@ -272,7 +260,7 @@ function App() {
         {(answer || asking || askError) && (
           <div className="answer" aria-live="polite">
             {answer ? (
-              <p>{withCitations(answer, sources?.length ?? 0)}</p>
+              <Answer text={answer} sourceCount={sources?.length ?? 0} />
             ) : (
               asking && <p className="muted">{sources ? 'Thinking…' : 'Finding passages…'}</p>
             )}

@@ -237,10 +237,81 @@ h3 {
   background: var(--bg);
 }
 
-.answer p {
+.answer > p {
   margin: 0;
-  white-space: pre-wrap;
+}
+
+.markdown {
   overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown .table-wrap {
+  margin: 0 0 10px;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 14px 0 6px;
+  font-size: 1rem;
+}
+
+.markdown code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 0.9em;
+}
+
+.markdown pre {
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.markdown pre code {
+  padding: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.markdown th,
+.markdown td {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+
+.markdown th {
+  background: var(--surface);
 }
 
 .answer .usage {

@@ -68,6 +68,10 @@ Run `just` to see every task, and `just check` to run what CI runs.
 
 Validation and retrieval happen before the stream opens, so a bad request gets a normal 4xx.
 
+The web app renders answers as Markdown (including tables) with citations as links to their
+sources. Because answers are shaped by uploaded documents, raw HTML is dropped and images are
+never loaded, so a malicious document can't inject script or leak data through an image URL.
+
 ### Choosing a model
 
 Providers are enabled by their API keys in `.env` (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
