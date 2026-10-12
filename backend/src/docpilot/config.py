@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     allowed_models: list[str] | None = None  # e.g. '["claude-haiku-5-5"]'; None allows all
     demo_questions_per_hour: int = 20  # per visitor
     demo_questions_per_day: int = 500  # per running instance
+    # Shared with the Cloudflare Worker in front of the demo, which passes on the visitor's IP
+    proxy_secret: SecretStr = SecretStr("")
 
     # Built web app to serve from the API (set in the production image)
     static_dir: Path | None = None

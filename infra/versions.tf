@@ -6,6 +6,14 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 8.4.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.27.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7.0"
+    }
   }
 
   # State lives in a versioned bucket created by `just infra-bootstrap`.

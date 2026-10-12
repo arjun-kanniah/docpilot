@@ -1,3 +1,4 @@
+import hmac
 import threading
 import time
 from collections import deque
@@ -52,9 +53,22 @@ class RateLimiter:
             return None
 
 
-def visitor_id(request: Request) -> str:
-    """The client's IP. Google's front end appends it to X-Forwarded-For, so take the last
-    entry; anything before it was sent by the client and can't be trusted."""
+PROXY_SECRET_HEADER = "x-docpilot-proxy-secret"
+CLIENT_IP_HEADER = "x-docpilot-client-ip"
+
+
+def visitor_id(request: Request, proxy_secret: str = "") -> str:
+    """The client's IP.
+
+    Requests through the Cloudflare Worker reach Cloud Run from Cloudflare's addresses, so the
+    Worker passes the visitor's IP in a header, trusted only with the shared secret. Otherwise
+    Google's front end appends the client's IP to X-Forwarded-For, so take the last entry;
+    anything before it was sent by the client and can't be trusted.
+    """
+    sent_secret = request.headers.get(PROXY_SECRET_HEADER, "")
+    client_ip = request.headers.get(CLIENT_IP_HEADER)
+    if proxy_secret and client_ip and hmac.compare_digest(sent_secret, proxy_secret):
+        return client_ip
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[-1].strip()

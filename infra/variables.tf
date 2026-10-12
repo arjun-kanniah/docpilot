@@ -9,6 +9,30 @@ variable "region" {
   default     = "us-east5"
 }
 
+variable "zone" {
+  description = "Cloudflare zone (domain) for the demo apps."
+  type        = string
+  default     = "arjunkanniah.dev"
+}
+
+variable "domain" {
+  description = "Custom domain for the demo, served by a Cloudflare Worker."
+  type        = string
+  default     = "docpilot.arjunkanniah.dev"
+}
+
+variable "brand_zone" {
+  description = "Cloudflare zone for the personal site."
+  type        = string
+  default     = "arjunkanniah.com"
+}
+
+variable "home_url" {
+  description = "Where the personal site redirects until it has pages of its own."
+  type        = string
+  default     = "https://github.com/arjun-kanniah"
+}
+
 variable "billing_account" {
   description = "Billing account ID (XXXXXX-XXXXXX-XXXXXX) for the budget alert."
   type        = string

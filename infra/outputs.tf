@@ -1,5 +1,10 @@
 output "url" {
   description = "Public URL of the demo."
+  value       = "https://${var.domain}"
+}
+
+output "run_url" {
+  description = "The Cloud Run service's own URL, behind the custom domain."
   value       = google_cloud_run_v2_service.docpilot.uri
 }
 

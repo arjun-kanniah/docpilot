@@ -6,7 +6,7 @@
 Markdown, and DocPilot retrieves the relevant passages and answers with sources you can check.
 The LLM provider is switchable per request.
 
-**[Try the live demo](https://docpilot-pjdlxrzqoq-ul.a.run.app)**: ask about a fictional
+**[Try the live demo](https://docpilot.arjunkanniah.dev)**: ask about a fictional
 company's knowledge base (read-only, cheap models, rate-limited). See [Deploying](#deploying)
 for how it runs.
 
@@ -19,7 +19,7 @@ for how it runs.
 | Search | PostgreSQL + [pgvector](https://github.com/pgvector/pgvector) |
 | LLMs | Claude, OpenAI and Gemini behind one provider interface |
 | Tooling | [mise](https://mise.jdx.dev) (toolchain), [just](https://just.systems) (tasks), dev container, GitHub Actions |
-| Cloud | Google Cloud Run, Neon serverless Postgres, Terraform, deploys from GitHub Actions |
+| Cloud | Google Cloud Run, Neon serverless Postgres, Cloudflare (DNS + Worker), Terraform, deploys from GitHub Actions |
 
 ## Quick start
 
@@ -118,12 +118,13 @@ that drops below 90%. The grader is checked first: it passes the reference answe
 
 ## Deploying
 
-The public demo runs on Google Cloud Run with a [Neon](https://neon.tech) Postgres database.
-Both scale to zero, so an idle demo costs nothing.
+The public demo runs on Google Cloud Run with a [Neon](https://neon.tech) Postgres database,
+behind a Cloudflare Worker that serves the custom domain. All three have free tiers and the
+first two scale to zero, so an idle demo costs nothing.
 
 ```mermaid
 flowchart LR
-    U[Browser] --> R["Cloud Run<br/>API + web app + embedding model"]
+    U[Browser] --> W["Cloudflare Worker<br/>docpilot.arjunkanniah.dev"] --> R["Cloud Run<br/>API + web app + embedding model"]
     R --> N[("Neon Postgres<br/>+ pgvector")]
     R --> L["Claude · OpenAI · Gemini"]
     S[Secret Manager] -. keys and database URL .-> R
@@ -135,8 +136,14 @@ flowchart LR
 - **Every push to `main`** that passes CI builds the image, runs a migration job (which also
   loads the demo PDF), deploys a new revision and smoke-tests it.
 - **[`infra/`](infra/)** (Terraform) owns the service, the migration job, least-privilege service
-  accounts, GitHub's deploy access (limited to this repo's `main` branch) and a budget alert.
-  Secret values are stored with `just secret`, so they never reach code or Terraform state.
+  accounts, GitHub's deploy access (limited to this repo's `main` branch), a budget alert, and
+  the Cloudflare side: DNS, the Worker and redirects. Provider keys, the database URL and the
+  Cloudflare token are stored with `just secret`, so they never reach code or Terraform state.
+- **Why a Worker for the domain:** Cloud Run's built-in domain mapping isn't offered in
+  us-east5, a Google load balancer costs about USD 18 a month, and Firebase Hosting buffers
+  responses, which would break streamed answers. The Worker streams them through
+  ([`infra/worker/proxy.js`](infra/worker/proxy.js)) and passes on the visitor's IP for the rate
+  limit, with a shared secret so direct callers can't forge it.
 
 **Demo mode** (`DOCPILOT_DEMO_MODE=true`) guards the public URL: the document library is
 read-only, only cheap models are offered, each visitor gets 20 questions an hour, and
@@ -147,9 +154,10 @@ One-time setup, using a dedicated gcloud profile named `docpilot`:
 ```bash
 just infra-bootstrap                 # APIs, Terraform state bucket, terraform init
 just secret database-url             # Neon connection string; likewise anthropic-api-key,
-                                     # openai-api-key and gemini-api-key
+                                     # openai-api-key, gemini-api-key, cloudflare-api-token
 cp infra/terraform.tfvars.example infra/terraform.tfvars   # then fill it in
-just infra apply                     # everything else
+just infra apply                     # everything else (the domains must already be
+                                     # active zones in Cloudflare)
 ```
 
 Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER` and
@@ -161,7 +169,7 @@ Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVI
 backend/        FastAPI service (src/docpilot), Alembic migrations, tests
 frontend/       React + TypeScript web app
 demo/           fictional knowledge base, evaluation set and results
-infra/          Terraform for Google Cloud
+infra/          Terraform for Google Cloud and Cloudflare, and the Worker
 Dockerfile      production image (API + web app + embedding model)
 .devcontainer/  reproducible dev environment
 justfile        task runner: setup, dev, lint, test, eval, infra
@@ -177,6 +185,7 @@ mise.toml       pinned toolchain
 - [x] Provider switch: Claude, OpenAI and Gemini behind one interface, per request
 - [x] Evaluation: a question set with graded answers; retrieval checked in CI
 - [x] Deploy: Cloud Run + Neon via Terraform, deployed from CI, with spend guardrails
+- [x] Custom domain through a Cloudflare Worker, keeping answers streamed
 - [ ] Agent mode: multi-step research across documents
 
 ## License

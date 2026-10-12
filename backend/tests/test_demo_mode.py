@@ -89,3 +89,17 @@ def test_visitor_id_uses_the_last_forwarded_address() -> None:
     }
 
     assert visitor_id(Request(scope)) == "203.0.113.9"
+
+
+def test_visitor_id_trusts_the_worker_only_with_the_secret() -> None:
+    def request(secret: str) -> Request:
+        headers = [
+            (b"x-forwarded-for", b"203.0.113.9, 104.16.0.1"),
+            (b"x-docpilot-client-ip", b"198.51.100.7"),
+            (b"x-docpilot-proxy-secret", secret.encode()),
+        ]
+        return Request({"type": "http", "headers": headers, "client": ("10.0.0.1", 1234)})
+
+    assert visitor_id(request("s3cret"), proxy_secret="s3cret") == "198.51.100.7"
+    assert visitor_id(request("guess"), proxy_secret="s3cret") == "104.16.0.1"
+    assert visitor_id(request(""), proxy_secret="") == "104.16.0.1"  # no secret configured

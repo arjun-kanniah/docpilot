@@ -160,7 +160,7 @@ def prepare_ask(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     k = body.k or settings.answer_top_k
     if settings.demo_mode:
-        if refusal := limiter.check(visitor_id(request)):
+        if refusal := limiter.check(visitor_id(request, settings.proxy_secret.get_secret_value())):
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, refusal)
         k = min(k, settings.answer_top_k)  # bigger prompts cost more
     hits = search_chunks(session, embedder, body.question, k)

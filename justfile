@@ -83,7 +83,7 @@ secret name:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{name}}" in
-        database-url|anthropic-api-key|openai-api-key|gemini-api-key) ;;
+        database-url|anthropic-api-key|openai-api-key|gemini-api-key|cloudflare-api-token) ;;
         *) echo "Unknown secret '{{name}}'" >&2; exit 1 ;;
     esac
     export CLOUDSDK_ACTIVE_CONFIG_NAME=docpilot
@@ -101,4 +101,5 @@ infra *args:
     set -euo pipefail
     export CLOUDSDK_ACTIVE_CONFIG_NAME=docpilot
     export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)
+    export CLOUDFLARE_API_TOKEN=$(gcloud secrets versions access latest --secret=cloudflare-api-token)
     cd infra && terraform {{args}}

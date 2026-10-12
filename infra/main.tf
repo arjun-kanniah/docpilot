@@ -141,6 +141,16 @@ resource "google_cloud_run_v2_service" "docpilot" {
         }
       }
 
+      env {
+        name = "DOCPILOT_PROXY_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.proxy.secret_id
+            version = "latest"
+          }
+        }
+      }
+
       startup_probe {
         http_get {
           path = "/api/health"
@@ -156,7 +166,11 @@ resource "google_cloud_run_v2_service" "docpilot" {
     ignore_changes = [template[0].containers[0].image, client, client_version]
   }
 
-  depends_on = [google_secret_manager_secret_iam_member.runtime]
+  depends_on = [
+    google_secret_manager_secret_iam_member.runtime,
+    google_secret_manager_secret_iam_member.runtime_proxy,
+    google_secret_manager_secret_version.proxy,
+  ]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public" {

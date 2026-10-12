@@ -2,3 +2,7 @@
 project_id      = "your-project-id"
 billing_account = "XXXXXX-XXXXXX-XXXXXX" # gcloud billing accounts list
 # monthly_budget = 20                    # in the billing account's currency
+# zone       = "arjunkanniah.dev"            # Cloudflare zones, added in the dashboard first
+# domain     = "docpilot.arjunkanniah.dev"
+# brand_zone = "arjunkanniah.com"
+# home_url   = "https://github.com/arjun-kanniah"

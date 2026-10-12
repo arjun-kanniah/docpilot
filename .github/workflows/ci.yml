@@ -68,3 +68,8 @@ jobs:
           url=$(gcloud run services describe docpilot --region "$REGION" --format='value(status.url)')
           curl -sf --retry 5 --retry-all-errors "$url/api/health"
           curl -sf "$url/api/documents" | grep -q aurora_knowledge_base.pdf
+          if [ -n "$PUBLIC_URL" ]; then  # the custom domain, through the Cloudflare Worker
+            curl -sf --retry 5 --retry-all-errors "$PUBLIC_URL/api/health"
+          fi
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
