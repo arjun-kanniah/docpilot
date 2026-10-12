@@ -1,15 +1,8 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-import {
-  api,
-  type AskUsage,
-  type DocumentInfo,
-  type Health,
-  type ModelsInfo,
-  type SearchHit,
-} from './api'
-import { Answer } from './Answer'
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { api, type DocumentInfo, type Health, type ModelsInfo } from './api'
+import { ChatTurn, type Turn } from './ChatTurn'
+import { DocumentsPanel, type Notice } from './DocumentsPanel'
 
-const ACCEPTED = '.pdf,.md,.markdown,.txt'
 const MODEL_KEY = 'docpilot.model'
 
 function loadModelChoice(): string | null {
@@ -28,12 +21,6 @@ function saveModelChoice(value: string) {
   }
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
@@ -43,16 +30,17 @@ function App() {
   const [healthError, setHealthError] = useState<string | null>(null)
   const [documents, setDocuments] = useState<DocumentInfo[]>([])
   const [uploading, setUploading] = useState(false)
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [docsOpen, setDocsOpen] = useState(false) // drawer on narrow screens
   const [models, setModels] = useState<ModelsInfo | null>(null)
   const [modelChoice, setModelChoice] = useState('')
   const [question, setQuestion] = useState('')
+  const [turns, setTurns] = useState<Turn[]>([])
   const [asking, setAsking] = useState(false)
-  const [answer, setAnswer] = useState('')
-  const [sources, setSources] = useState<SearchHit[] | null>(null)
-  const [usage, setUsage] = useState<AskUsage | null>(null)
-  const [askError, setAskError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
+  const stickToBottom = useRef(true)
+  const nextTurnId = useRef(1)
 
   const refreshDocuments = useCallback(() => {
     api
@@ -79,8 +67,13 @@ function App() {
     refreshDocuments()
   }, [refreshDocuments])
 
-  async function handleUpload(files: FileList | null) {
-    if (!files?.length) return
+  // Follow the streaming answer, unless the reader has scrolled up to read something
+  useEffect(() => {
+    const thread = threadRef.current
+    if (thread && stickToBottom.current) thread.scrollTop = thread.scrollHeight
+  }, [turns])
+
+  async function handleUpload(files: FileList) {
     setUploading(true)
     setNotice(null)
     const messages: string[] = []
@@ -102,6 +95,7 @@ function App() {
   }
 
   async function handleDelete(doc: DocumentInfo) {
+    if (!window.confirm(`Delete ${doc.filename}? Its passages are removed from search.`)) return
     try {
       await api.deleteDocument(doc.id)
       refreshDocuments()
@@ -110,105 +104,103 @@ function App() {
     }
   }
 
-  async function handleAsk(event: FormEvent) {
-    event.preventDefault()
-    if (!question.trim() || asking) return
+  async function handleAsk(event?: FormEvent) {
+    event?.preventDefault()
+    const text = question.trim()
+    if (!text || asking || !modelChoice) return
     const [provider, model] = modelChoice.split(':')
+    const id = nextTurnId.current++
+    const update = (patch: Partial<Turn> | ((turn: Turn) => Partial<Turn>)) =>
+      setTurns((all) =>
+        all.map((t) => {
+          if (t.id !== id) return t
+          return { ...t, ...(typeof patch === 'function' ? patch(t) : patch) }
+        }),
+      )
+
     const controller = new AbortController()
     abortRef.current = controller
+    stickToBottom.current = true
+    setQuestion('')
     setAsking(true)
-    setAnswer('')
-    setSources(null)
-    setUsage(null)
-    setAskError(null)
+    setTurns((all) => [
+      ...all,
+      { id, question: text, answer: '', sources: null, usage: null, error: null, pending: true },
+    ])
     try {
       await api.ask(
-        { question: question.trim(), provider: provider || undefined, model: model || undefined },
+        { question: text, provider, model },
         {
-          onSources: setSources,
-          onDelta: (text) => setAnswer((current) => current + text),
-          onDone: setUsage,
-          onError: setAskError,
+          onSources: (sources) => update({ sources }),
+          onDelta: (delta) => update((t) => ({ answer: t.answer + delta })),
+          onDone: (usage) => update({ usage }),
+          onError: (error) => update({ error }),
         },
         controller.signal,
       )
     } catch (err) {
-      if (!controller.signal.aborted) setAskError(errorMessage(err))
+      update({ error: controller.signal.aborted ? 'Stopped.' : errorMessage(err) })
     } finally {
+      update({ pending: false })
       abortRef.current = null
       setAsking(false)
     }
   }
 
+  function handleComposerKey(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      void handleAsk()
+    }
+  }
+
+  const docCount = `${documents.length} indexed document${documents.length === 1 ? '' : 's'}`
+  const emptyMessage =
+    models !== null && models.providers.length === 0
+      ? 'No LLM provider is configured. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env ' +
+        'and restart the API.'
+      : documents.length === 0
+        ? 'Upload a PDF, Markdown or text file, then ask a question about it.'
+        : `Answers come from your ${docCount}, with citations you can check.`
+
   return (
-    <main>
-      <header className="header">
-        <div>
+    <div className="app">
+      <aside className={`sidebar ${docsOpen ? 'open' : ''}`}>
+        <div className="brand">
           <h1>DocPilot</h1>
-          <p className="tagline">Ask questions about your documents and get answers with citations.</p>
+          <span
+            className={`status-dot ${health ? 'status-ok' : healthError ? 'status-error' : ''}`}
+            title={health ? `API v${health.version}` : (healthError ?? 'Connecting…')}
+            aria-label={health ? 'API online' : healthError ? 'API offline' : 'Connecting'}
+          />
+          <button
+            type="button"
+            className="icon-button drawer-close"
+            onClick={() => setDocsOpen(false)}
+            aria-label="Close documents"
+          >
+            ×
+          </button>
         </div>
-        <span
-          className={`status ${health ? 'status-ok' : healthError ? 'status-error' : ''}`}
-          title={healthError ?? undefined}
-        >
-          {health ? `API v${health.version}` : healthError ? 'API offline' : 'Connecting…'}
-        </span>
-      </header>
+        <DocumentsPanel
+          documents={documents}
+          uploading={uploading}
+          notice={notice}
+          onUpload={(files) => void handleUpload(files)}
+          onDelete={(doc) => void handleDelete(doc)}
+        />
+      </aside>
+      {docsOpen && <div className="scrim" onClick={() => setDocsOpen(false)} aria-hidden />}
 
-      {notice && (
-        <p className={`notice notice-${notice.kind}`} role="status">
-          {notice.text}
-        </p>
-      )}
-
-      <section className="card">
-        <div className="card-head">
-          <h2>Documents</h2>
-          <label className={`button ${uploading ? 'disabled' : ''}`}>
-            {uploading ? 'Indexing…' : 'Upload files'}
-            <input
-              type="file"
-              accept={ACCEPTED}
-              multiple
-              hidden
-              disabled={uploading}
-              onChange={(e) => {
-                void handleUpload(e.target.files)
-                e.target.value = ''
-              }}
-            />
-          </label>
-        </div>
-        {documents.length === 0 ? (
-          <p className="muted">No documents yet. Upload a PDF, Markdown or text file to start.</p>
-        ) : (
-          <ul className="doc-list">
-            {documents.map((doc) => (
-              <li key={doc.id}>
-                <div>
-                  <strong>{doc.filename}</strong>
-                  <span className="muted">
-                    {formatSize(doc.size_bytes)}
-                    {doc.page_count ? ` · ${doc.page_count} pages` : ''} · {doc.chunk_count} chunks
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={() => void handleDelete(doc)}
-                  aria-label={`Delete ${doc.filename}`}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="card-head">
-          <h2>Ask</h2>
+      <main className="chat">
+        <header className="chat-head">
+          <button
+            type="button"
+            className="ghost-button drawer-open"
+            onClick={() => setDocsOpen(true)}
+          >
+            Documents ({documents.length})
+          </button>
           {models && models.providers.length > 0 && (
             <select
               className="model-select"
@@ -231,20 +223,49 @@ function App() {
               ))}
             </select>
           )}
+          {turns.length > 0 && (
+            <button
+              type="button"
+              className="ghost-button new-chat"
+              onClick={() => setTurns([])}
+              disabled={asking}
+            >
+              New chat
+            </button>
+          )}
+        </header>
+
+        <div
+          className="thread"
+          ref={threadRef}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+          }}
+        >
+          {turns.length === 0 ? (
+            <div className="empty">
+              <h2>Ask your documents</h2>
+              <p className="muted">{emptyMessage}</p>
+            </div>
+          ) : (
+            <div className="turns">
+              {turns.map((turn) => (
+                <ChatTurn key={turn.id} turn={turn} />
+              ))}
+            </div>
+          )}
         </div>
-        {models && models.providers.length === 0 && (
-          <p className="muted">
-            No LLM provider is configured. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env and
-            restart the API.
-          </p>
-        )}
-        <form className="search" onSubmit={(e) => void handleAsk(e)}>
-          <input
-            type="search"
+
+        <form className="composer" onSubmit={(e) => void handleAsk(e)}>
+          <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="e.g. Is water damage covered?"
+            onKeyDown={handleComposerKey}
+            placeholder="Ask a question about your documents…"
             aria-label="Question"
+            rows={1}
+            maxLength={2000}
           />
           {asking ? (
             <button type="button" className="button" onClick={() => abortRef.current?.abort()}>
@@ -256,50 +277,12 @@ function App() {
             </button>
           )}
         </form>
-
-        {(answer || asking || askError) && (
-          <div className="answer" aria-live="polite">
-            {answer ? (
-              <Answer text={answer} sourceCount={sources?.length ?? 0} />
-            ) : (
-              asking && <p className="muted">{sources ? 'Thinking…' : 'Finding passages…'}</p>
-            )}
-            {askError && <p className="notice-error">{askError}</p>}
-            {usage && (
-              <p className="muted usage">
-                {usage.model} · {usage.input_tokens.toLocaleString()} in /{' '}
-                {usage.output_tokens.toLocaleString()} out tokens
-              </p>
-            )}
-          </div>
-        )}
-
-        {sources && sources.length > 0 && (
-          <div>
-            <h3>Sources</h3>
-            <ol className="hits">
-              {sources.map((hit, i) => (
-                <li key={hit.chunk_id} id={`source-${i + 1}`}>
-                  <div className="hit-meta">
-                    <span>
-                      <span className="cite">{i + 1}</span> {hit.filename}
-                      {hit.page ? `, page ${hit.page}` : ''}
-                    </span>
-                    <span className="score" title="Similarity to the question">
-                      {hit.score.toFixed(2)}
-                    </span>
-                  </div>
-                  <details>
-                    <summary>Passage</summary>
-                    <p>{hit.text}</p>
-                  </details>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-      </section>
-    </main>
+        <p className="composer-hint">
+          Each question is answered on its own from your documents. Enter to send, Shift+Enter
+          for a new line.
+        </p>
+      </main>
+    </div>
   )
 }
 
