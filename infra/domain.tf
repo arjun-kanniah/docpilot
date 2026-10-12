@@ -1,10 +1,6 @@
-# --- Custom domain ------------------------------------------------------------------------
-#
-# Cloud Run's own domain mapping isn't offered in us-east5, a global load balancer costs about
-# USD 18 a month, and Firebase Hosting buffers responses, which breaks streamed answers. So a
-# Cloudflare Worker on the free plan fronts the service instead, with the domain's DNS on
-# Cloudflare. The zones themselves are added in the Cloudflare dashboard, since moving a
-# domain's nameservers is a manual step at the registrar.
+# The DocPilot custom domain itself is the blueprint's cloudflare-domain module (main.tf).
+# The zones are added in the Cloudflare dashboard, since moving a domain's nameservers is a
+# manual step at the registrar.
 
 data "cloudflare_zone" "site" {
   filter = { name = var.zone }
@@ -12,65 +8,6 @@ data "cloudflare_zone" "site" {
 
 data "cloudflare_zone" "brand" {
   filter = { name = var.brand_zone }
-}
-
-locals {
-  cloudflare_account_id = data.cloudflare_zone.site.account.id
-}
-
-# Lets the API trust the visitor IP that the Worker passes on.
-resource "random_password" "proxy_secret" {
-  length  = 40
-  special = false
-}
-
-resource "google_secret_manager_secret" "proxy" {
-  secret_id = "proxy-secret"
-  replication {
-    auto {}
-  }
-
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_secret_manager_secret_version" "proxy" {
-  secret      = google_secret_manager_secret.proxy.id
-  secret_data = random_password.proxy_secret.result
-}
-
-resource "google_secret_manager_secret_iam_member" "runtime_proxy" {
-  secret_id = google_secret_manager_secret.proxy.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = google_service_account.runtime.member
-}
-
-resource "cloudflare_workers_script" "proxy" {
-  account_id         = local.cloudflare_account_id
-  script_name        = "docpilot-proxy"
-  content            = file("${path.module}/worker/proxy.js")
-  main_module        = "proxy.js"
-  compatibility_date = "2026-09-01"
-
-  bindings = [
-    {
-      name = "ORIGIN_HOST"
-      type = "plain_text"
-      text = trimprefix(google_cloud_run_v2_service.docpilot.uri, "https://")
-    },
-    {
-      name = "PROXY_SECRET"
-      type = "secret_text"
-      text = random_password.proxy_secret.result
-    },
-  ]
-}
-
-# Creates the DNS record and certificate for the hostname and routes it to the Worker.
-resource "cloudflare_workers_custom_domain" "docpilot" {
-  account_id = local.cloudflare_account_id
-  zone_id    = data.cloudflare_zone.site.zone_id
-  hostname   = var.domain
-  service    = cloudflare_workers_script.proxy.script_name
 }
 
 # --- Redirects ------------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 # from the inbox, e.g. with Gmail's "Send mail as".
 
 resource "cloudflare_email_routing_address" "inbox" {
-  account_id = local.cloudflare_account_id
+  account_id = data.cloudflare_zone.brand.account.id
   email      = var.email_forward_to # Cloudflare emails it a link to confirm before forwarding
 }
 

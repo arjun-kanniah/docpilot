@@ -138,15 +138,18 @@ flowchart LR
 - **One container** serves the API and the built web app, with the embedding model baked in so
   cold starts never download it ([`Dockerfile`](Dockerfile)).
 - **Every push to `main`** that passes CI builds the image, runs a migration job (which also
-  loads the demo PDF), deploys a new revision and smoke-tests it.
-- **[`infra/`](infra/)** (Terraform) owns the service, the migration job, least-privilege service
-  accounts, GitHub's deploy access (limited to this repo's `main` branch), a budget alert, and
-  the Cloudflare side: DNS, the Worker and redirects. Provider keys, the database URL and the
+  loads the demo PDF), deploys a new revision and smoke-tests it, using the blueprint's
+  reusable deploy workflow.
+- **[`infra/`](infra/)** (Terraform) builds on
+  [cloudrun-blueprint](https://github.com/arjun-kanniah/cloudrun-blueprint), my reusable
+  modules for Cloud Run: the service, the migration job, least-privilege service accounts,
+  GitHub's deploy access (limited to this repo's `main` branch), a budget alert and the Worker.
+  DocPilot adds its own settings and the rest of the Cloudflare side: redirects and email. Provider keys, the database URL and the
   Cloudflare token are stored with `just secret`, so they never reach code or Terraform state.
 - **Why a Worker for the domain:** Cloud Run's built-in domain mapping isn't offered in
   us-east5, a Google load balancer costs about USD 18 a month, and Firebase Hosting buffers
   responses, which would break streamed answers. The Worker streams them through
-  ([`infra/worker/proxy.js`](infra/worker/proxy.js)) and passes on the visitor's IP for the rate
+  ([`proxy.js`](https://github.com/arjun-kanniah/cloudrun-blueprint/blob/v0.1.0/modules/cloudflare-domain/worker/proxy.js)) and passes on the visitor's IP for the rate
   limit, with a shared secret so direct callers can't forge it.
 
 **Demo mode** (`DOCPILOT_DEMO_MODE=true`) guards the public URL: the document library is
@@ -173,7 +176,7 @@ Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVI
 backend/        FastAPI service (src/docpilot), Alembic migrations, tests
 frontend/       React + TypeScript web app
 demo/           fictional knowledge base, evaluation set and results
-infra/          Terraform for Google Cloud and Cloudflare, and the Worker
+infra/          Terraform for Google Cloud and Cloudflare (uses cloudrun-blueprint)
 Dockerfile      production image (API + web app + embedding model)
 .devcontainer/  reproducible dev environment
 justfile        task runner: setup, dev, lint, test, eval, infra
