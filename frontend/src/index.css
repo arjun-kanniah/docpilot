@@ -209,6 +209,7 @@ h3 {
 
 .chat-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
@@ -617,4 +618,100 @@ h3 {
   text-align: center;
   text-decoration: none;
   vertical-align: 0.15em;
+}
+
+/* Research mode */
+
+.drawer-open {
+  white-space: nowrap;
+}
+
+.mode-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mode-switch button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.mode-switch button.active {
+  background: var(--bubble);
+  color: var(--text);
+}
+
+.mode-switch button:disabled {
+  cursor: default;
+}
+
+.mode-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.trace {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+.trace > summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.trace-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trace-step {
+  margin-top: 6px;
+}
+
+.trace-step:first-child {
+  margin-top: 0;
+}
+
+.trace-tool,
+.trace-review,
+.trace-notes {
+  padding-left: 14px;
+  overflow-wrap: anywhere;
+}
+
+.trace-review ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
+.trace-notes summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.trace-notes p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
 }

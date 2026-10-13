@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     answer_top_k: int = 6
     answer_max_tokens: int = 16000
 
+    # Agent mode: POST /api/agent
+    agent_max_rounds: int = 2  # research rounds, including ones the analyst asks for
+    agent_max_tool_calls: int = 6  # per round
+    agent_search_k: int = 5  # passages per search
+    agent_question_cost: int = 5  # an agent run counts as this many questions on the demo
+
     # Provider keys use the SDKs' standard names, without the DOCPILOT_ prefix
     anthropic_api_key: SecretStr = Field(SecretStr(""), validation_alias="ANTHROPIC_API_KEY")
     gemini_api_key: SecretStr = Field(SecretStr(""), validation_alias="GEMINI_API_KEY")

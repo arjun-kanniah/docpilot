@@ -1,9 +1,14 @@
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { api, type DocumentInfo, type Health, type ModelsInfo } from './api'
-import { ChatTurn, type Turn } from './ChatTurn'
+import { api, type DocumentInfo, type Health, type ModelsInfo, type SearchHit } from './api'
+import { ChatTurn, type Mode, type Turn } from './ChatTurn'
 import { DocumentsPanel, type Notice } from './DocumentsPanel'
 
 const MODEL_KEY = 'docpilot.model'
+
+const PLACEHOLDERS: Record<Mode, string> = {
+  ask: 'Ask a question about your documents…',
+  research: 'Give a research task, e.g. compare options and recommend one…',
+}
 
 function loadModelChoice(): string | null {
   try {
@@ -35,6 +40,7 @@ function App() {
   const [models, setModels] = useState<ModelsInfo | null>(null)
   const [modelChoice, setModelChoice] = useState('')
   const [question, setQuestion] = useState('')
+  const [mode, setMode] = useState<Mode>('ask')
   const [turns, setTurns] = useState<Turn[]>([])
   const [asking, setAsking] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -125,19 +131,34 @@ function App() {
     setAsking(true)
     setTurns((all) => [
       ...all,
-      { id, question: text, answer: '', sources: null, usage: null, error: null, pending: true },
+      {
+        id,
+        mode,
+        question: text,
+        answer: '',
+        sources: null,
+        usage: null,
+        trace: [],
+        error: null,
+        pending: true,
+      },
     ])
+    const handlers = {
+      onSources: (sources: SearchHit[]) => update({ sources }),
+      onDelta: (delta: string) => update((t) => ({ answer: t.answer + delta })),
+      onDone: (usage: Turn['usage']) => update({ usage }),
+      onError: (error: string) => update({ error }),
+    }
     try {
-      await api.ask(
-        { question: text, provider, model },
-        {
-          onSources: (sources) => update({ sources }),
-          onDelta: (delta) => update((t) => ({ answer: t.answer + delta })),
-          onDone: (usage) => update({ usage }),
-          onError: (error) => update({ error }),
-        },
-        controller.signal,
-      )
+      if (mode === 'research') {
+        await api.agent(
+          { task: text, provider, model },
+          { ...handlers, onTrace: (item) => update((t) => ({ trace: [...t.trace, item] })) },
+          controller.signal,
+        )
+      } else {
+        await api.ask({ question: text, provider, model }, handlers, controller.signal)
+      }
     } catch (err) {
       update({ error: controller.signal.aborted ? 'Stopped.' : errorMessage(err) })
     } finally {
@@ -202,6 +223,20 @@ function App() {
           >
             Documents ({documents.length})
           </button>
+          <div className="mode-switch" role="group" aria-label="Mode">
+            {(['ask', 'research'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={mode === m ? 'active' : ''}
+                aria-pressed={mode === m}
+                onClick={() => setMode(m)}
+                disabled={asking}
+              >
+                {m === 'ask' ? 'Ask' : 'Research'}
+              </button>
+            ))}
+          </div>
           {models && models.providers.length > 0 && (
             <select
               className="model-select"
@@ -246,7 +281,7 @@ function App() {
         >
           {turns.length === 0 ? (
             <div className="empty">
-              <h2>Ask your documents</h2>
+              <h2>{mode === 'ask' ? 'Ask your documents' : 'Research your documents'}</h2>
               <p className="muted">{emptyMessage}</p>
             </div>
           ) : (
@@ -263,8 +298,8 @@ function App() {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleComposerKey}
-            placeholder="Ask a question about your documents…"
-            aria-label="Question"
+            placeholder={PLACEHOLDERS[mode]}
+            aria-label={mode === 'ask' ? 'Question' : 'Research task'}
             rows={1}
             maxLength={2000}
           />
@@ -274,13 +309,16 @@ function App() {
             </button>
           ) : (
             <button type="submit" className="button" disabled={!question.trim() || !modelChoice}>
-              Ask
+              {mode === 'ask' ? 'Ask' : 'Research'}
             </button>
           )}
         </form>
         <p className="composer-hint">
-          Each question is answered on its own from your documents. Enter to send, Shift+Enter
-          for a new line.
+          {mode === 'ask'
+            ? 'Each question is answered on its own from your documents.'
+            : 'Research mode: a researcher searches, an analyst checks the notes, a writer ' +
+              `answers. Slower${health?.demo ? ', and counts as 5 questions on the demo' : ''}.`}{' '}
+          Enter to send, Shift+Enter for a new line.
         </p>
       </main>
     </div>

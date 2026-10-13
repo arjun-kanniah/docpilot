@@ -1,30 +1,41 @@
-import type { AskUsage, SearchHit } from './api'
+import type { AgentUsage, AskUsage, SearchHit, TraceItem } from './api'
 import { Answer } from './Answer'
+import { Trace } from './Trace'
+
+export type Mode = 'ask' | 'research'
 
 export type Turn = {
   id: number
+  mode: Mode
   question: string
   answer: string
   sources: SearchHit[] | null
-  usage: AskUsage | null
+  usage: AskUsage | AgentUsage | null
+  trace: TraceItem[]
   error: string | null
   pending: boolean
 }
 
-/** One question and its streamed answer, with the sources its citations point to. */
+/** One question (or research task) and its streamed answer, with the sources it cites. */
 export function ChatTurn({ turn }: { turn: Turn }) {
   const prefix = `turn-${turn.id}-source-`
   const sources = turn.sources ?? []
 
   return (
     <article className="turn">
-      <p className="question">{turn.question}</p>
+      <p className="question">
+        {turn.mode === 'research' && <span className="mode-tag">Research</span>}
+        {turn.question}
+      </p>
       <div className="reply" aria-live={turn.pending ? 'polite' : 'off'}>
+        {turn.mode === 'research' && (
+          <Trace items={turn.trace} running={turn.pending && !turn.answer} />
+        )}
         {turn.answer ? (
           <Answer text={turn.answer} sourceCount={sources.length} sourceIdPrefix={prefix} />
         ) : (
           turn.pending && (
-            <p className="muted typing">{turn.sources ? 'Thinking…' : 'Finding passages…'}</p>
+            <p className="muted typing">{pendingLabel(turn)}</p>
           )
         )}
         {turn.error && <p className="notice notice-error">{turn.error}</p>}
@@ -33,9 +44,7 @@ export function ChatTurn({ turn }: { turn: Turn }) {
           <details className="sources">
             <summary>
               {sources.length} sources
-              {turn.usage &&
-                ` · ${turn.usage.model} · ${turn.usage.input_tokens.toLocaleString()} in / ` +
-                  `${turn.usage.output_tokens.toLocaleString()} out tokens`}
+              {turn.usage && ` · ${usageLabel(turn.usage)}`}
             </summary>
             <ol className="hits">
               {sources.map((hit, i) => (
@@ -58,4 +67,23 @@ export function ChatTurn({ turn }: { turn: Turn }) {
       </div>
     </article>
   )
+}
+
+function pendingLabel(turn: Turn): string {
+  if (turn.mode === 'ask') return turn.sources ? 'Thinking…' : 'Finding passages…'
+  const last = turn.trace.findLast((item) => item.kind === 'step')
+  return last?.kind === 'step' && last.step === 'writer' ? 'Writing…' : 'Researching…'
+}
+
+function usageLabel(usage: AskUsage | AgentUsage): string {
+  const parts = [usage.model]
+  if ('rounds' in usage && usage.rounds !== undefined) {
+    parts.push(`${usage.rounds} round${usage.rounds === 1 ? '' : 's'}`)
+  }
+  if (usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
+    parts.push(
+      `${usage.input_tokens.toLocaleString()} in / ${usage.output_tokens.toLocaleString()} out tokens`,
+    )
+  }
+  return parts.join(' · ')
 }

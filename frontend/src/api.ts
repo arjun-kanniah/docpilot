@@ -29,6 +29,36 @@ export type ModelsInfo = { providers: ProviderInfo[]; default: ModelChoice | nul
 
 export type AskUsage = ModelChoice & { input_tokens: number; output_tokens: number }
 
+export type AgentUsage = ModelChoice & {
+  rounds?: number
+  tool_calls?: number
+  input_tokens?: number
+  output_tokens?: number
+}
+
+/** One entry in an agent run's trace. */
+export type TraceItem =
+  | { kind: 'step'; step: 'researcher' | 'analyst' | 'writer'; round?: number }
+  | { kind: 'tool'; name: string; args: Record<string, unknown>; summary: string }
+  | { kind: 'notes'; round: number; text: string }
+  | {
+      kind: 'review'
+      sufficient: boolean
+      gaps: string[]
+      corrections: string[]
+      summary: string
+      next: 'researcher' | 'writer'
+      stop_reason: 'round_limit' | 'no_new_passages' | null
+    }
+
+export type AgentHandlers = {
+  onTrace: (item: TraceItem) => void
+  onSources: (sources: SearchHit[]) => void
+  onDelta: (text: string) => void
+  onDone: (usage: AgentUsage) => void
+  onError: (message: string) => void
+}
+
 export type AskHandlers = {
   onSources: (sources: SearchHit[]) => void
   onDelta: (text: string) => void
@@ -47,13 +77,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? undefined : await res.json()) as T
 }
 
-/** POST /api/ask and dispatch its Server-Sent Events. (EventSource only supports GET.) */
-async function ask(
-  body: { question: string } & Partial<ModelChoice>,
-  handlers: AskHandlers,
+/** POST a JSON body and call `onEvent` for each Server-Sent Event. (EventSource only supports GET.) */
+async function postEvents(
+  path: string,
+  body: unknown,
+  onEvent: (event: string, payload: unknown) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch('/api/ask', {
+  const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -68,12 +99,7 @@ async function ask(
       if (line.startsWith('event: ')) event = line.slice(7)
       else if (line.startsWith('data: ')) data += line.slice(6)
     }
-    if (!data) return // keep-alive comment
-    const payload: unknown = JSON.parse(data)
-    if (event === 'sources') handlers.onSources(payload as SearchHit[])
-    else if (event === 'delta') handlers.onDelta((payload as { text: string }).text)
-    else if (event === 'done') handlers.onDone(payload as AskUsage)
-    else if (event === 'error') handlers.onError((payload as { message: string }).message)
+    if (data) onEvent(event, JSON.parse(data)) // no data: a keep-alive comment
   }
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
@@ -90,6 +116,46 @@ async function ask(
   }
 }
 
+/** POST /api/ask: sources, then the streamed answer, then usage. */
+function ask(
+  body: { question: string } & Partial<ModelChoice>,
+  handlers: AskHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  return postEvents(
+    '/api/ask',
+    body,
+    (event, payload) => {
+      if (event === 'sources') handlers.onSources(payload as SearchHit[])
+      else if (event === 'delta') handlers.onDelta((payload as { text: string }).text)
+      else if (event === 'done') handlers.onDone(payload as AskUsage)
+      else if (event === 'error') handlers.onError((payload as { message: string }).message)
+    },
+    signal,
+  )
+}
+
+/** POST /api/agent: the run's trace as it happens, sources, the streamed answer, then totals. */
+function agent(
+  body: { task: string } & Partial<ModelChoice>,
+  handlers: AgentHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  return postEvents(
+    '/api/agent',
+    body,
+    (event, payload) => {
+      if (event === 'sources') handlers.onSources(payload as SearchHit[])
+      else if (event === 'delta') handlers.onDelta((payload as { text: string }).text)
+      else if (event === 'done') handlers.onDone(payload as AgentUsage)
+      else if (event === 'error') handlers.onError((payload as { message: string }).message)
+      else if (event === 'step' || event === 'tool' || event === 'notes' || event === 'review')
+        handlers.onTrace({ kind: event, ...(payload as object) } as TraceItem)
+    },
+    signal,
+  )
+}
+
 export const api = {
   health: () => request<Health>('/api/health'),
   listDocuments: () => request<DocumentInfo[]>('/api/documents'),
@@ -101,4 +167,5 @@ export const api = {
   deleteDocument: (id: string) => request<void>(`/api/documents/${id}`, { method: 'DELETE' }),
   models: () => request<ModelsInfo>('/api/models'),
   ask,
+  agent,
 }

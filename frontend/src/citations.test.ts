@@ -8,6 +8,16 @@ describe('linkCitations', () => {
     )
   })
 
+  it('splits comma-separated lists into one link per source', () => {
+    expect(linkCitations('Two years [1, 2] and three [1,3].', 3)).toBe(
+      'Two years [1](#source-1)[2](#source-2) and three [1](#source-1)[3](#source-3).',
+    )
+  })
+
+  it('leaves a list alone if any number has no source', () => {
+    expect(linkCitations('See [1, 4].', 3)).toBe('See [1, 4].')
+  })
+
   it('leaves markers without a matching source alone', () => {
     expect(linkCitations('See [0] and [3].', 2)).toBe('See [0] and [3].')
   })

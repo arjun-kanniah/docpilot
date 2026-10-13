@@ -40,6 +40,12 @@ class AskIn(BaseModel):
     model: str | None = None
 
 
+class AgentIn(BaseModel):
+    task: str = Field(min_length=1, max_length=2000)
+    provider: str | None = None
+    model: str | None = None
+
+
 class ProviderOut(BaseModel):
     id: str
     label: str

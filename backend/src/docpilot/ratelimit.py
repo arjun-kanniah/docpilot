@@ -29,25 +29,25 @@ class RateLimiter:
         self._day = -1
         self._today = 0
 
-    def check(self, visitor: str) -> str | None:
-        """Record a question and return None, or return why it isn't allowed."""
+    def check(self, visitor: str, cost: int = 1) -> str | None:
+        """Record `cost` questions and return None, or return why they aren't allowed."""
         now = self._clock()
         with self._lock:
             if int(now // DAY) != self._day:
                 self._day, self._today = int(now // DAY), 0
-            if self._today >= self._per_day:
+            if self._today + cost > self._per_day:
                 return "The public demo has reached its question limit for today. Try tomorrow."
 
             recent = self._visitors.setdefault(visitor, deque())
             while recent and recent[0] <= now - HOUR:
                 recent.popleft()
-            if len(recent) >= self._per_hour:
+            if len(recent) + cost > self._per_hour:
                 return (
                     f"The public demo allows {self._per_hour} questions an hour. "
                     "Try again later, or run DocPilot locally."
                 )
-            recent.append(now)
-            self._today += 1
+            recent.extend([now] * cost)
+            self._today += cost
             if len(self._visitors) > 10_000:  # drop visitors with no recent questions
                 self._visitors = {k: v for k, v in self._visitors.items() if v[-1] > now - HOUR}
             return None

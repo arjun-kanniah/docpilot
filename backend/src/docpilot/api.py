@@ -9,7 +9,8 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from docpilot.answer import stream_answer
+from docpilot.agent.models import ModelFactory, get_model_factory
+from docpilot.answer import NO_SOURCES_ANSWER, stream_answer
 from docpilot.chunking import UnsupportedFileError
 from docpilot.config import Settings, get_settings
 from docpilot.db import get_session
@@ -20,6 +21,7 @@ from docpilot.llm.providers import Choice, LLMConfigError, LLMRegistry, get_llm_
 from docpilot.models import Chunk, Document
 from docpilot.ratelimit import RateLimiter, get_rate_limiter, visitor_id
 from docpilot.schemas import (
+    AgentIn,
     AskIn,
     DocumentOut,
     IngestOut,
@@ -39,6 +41,7 @@ EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 RegistryDep = Annotated[LLMRegistry, Depends(get_llm_registry)]
 LimiterDep = Annotated[RateLimiter, Depends(get_rate_limiter)]
+ModelFactoryDep = Annotated[ModelFactory, Depends(get_model_factory)]
 
 
 def require_writable_library(settings: SettingsDep) -> None:
@@ -206,3 +209,80 @@ def ask(
         event="done",
         data={"provider": choice.provider, "model": choice.model, **asdict(usage)},
     )
+
+
+def prepare_agent(
+    body: AgentIn,
+    request: Request,
+    settings: SettingsDep,
+    registry: RegistryDep,
+    limiter: LimiterDep,
+) -> tuple[AgentIn, Choice]:
+    """Validate and rate-limit before the stream opens, so refusals get a normal 4xx."""
+    try:
+        choice = registry.resolve(body.provider, body.model)
+    except LLMConfigError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if settings.demo_mode:
+        visitor = visitor_id(request, settings.proxy_secret.get_secret_value())
+        if refusal := limiter.check(visitor, cost=settings.agent_question_cost):
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                f"{refusal} An agent run counts as {settings.agent_question_cost} questions.",
+            )
+    return body, choice
+
+
+@router.post("/agent", response_class=EventSourceResponse)
+def agent(
+    prepared: Annotated[tuple[AgentIn, Choice], Depends(prepare_agent)],
+    session: SessionDep,
+    embedder: EmbedderDep,
+    settings: SettingsDep,
+    build_model: ModelFactoryDep,
+) -> Iterator[ServerSentEvent]:
+    """Run a task through the researcher, analyst and writer, streaming the run as it happens.
+
+    Events: `step` (a node starts), `tool` (a tool call and a summary of its result),
+    `sources` (every passage found so far, numbered for citations), `notes` (the researcher's
+    findings), `review` (the analyst's verdict), `delta` (answer text), then `done` (model,
+    rounds, tool calls and token usage) or `error`.
+    """
+    from docpilot.agent.errors import friendly_error  # LangGraph loads on the first agent run
+    from docpilot.agent.graph import Limits, build_graph, run_agent
+    from docpilot.agent.tools import SourceBook, make_tools
+
+    body, choice = prepared
+    if session.scalar(select(func.count()).select_from(Document)) == 0:
+        yield ServerSentEvent(event="delta", data={"text": NO_SOURCES_ANSWER})
+        yield ServerSentEvent(
+            event="done", data={"provider": choice.provider, "model": choice.model}
+        )
+        return
+
+    limits = Limits(
+        max_rounds=settings.agent_max_rounds, max_tool_calls=settings.agent_max_tool_calls
+    )
+    book = SourceBook()
+    graph = build_graph(
+        build_model(choice.provider, choice.model, limits.step_max_tokens),
+        build_model(choice.provider, choice.model, settings.answer_max_tokens),
+        make_tools(session, embedder, book, settings.agent_search_k),
+        book,
+        limits,
+    )
+    try:
+        for event, data in run_agent(graph, body.task):
+            if event == "sources":
+                data = [SearchHitOut(**asdict(hit)) for hit in data]
+            elif event == "done":
+                log.info("agent %s/%s: %s", choice.provider, choice.model, data)
+                data = {"provider": choice.provider, "model": choice.model, **data}
+            yield ServerSentEvent(event=event, data=data)
+    except Exception as exc:
+        message = friendly_error(exc)
+        if message:
+            log.warning("agent failed (%s/%s): %s", choice.provider, choice.model, exc)
+        else:
+            log.exception("agent failed (%s/%s)", choice.provider, choice.model)
+        yield ServerSentEvent(event="error", data={"message": message or "Something went wrong."})

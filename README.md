@@ -21,7 +21,7 @@ for how it runs.
 | API | Python 3.12, FastAPI, managed with [uv](https://docs.astral.sh/uv/) |
 | Web | React 19 + TypeScript, Vite |
 | Search | PostgreSQL + [pgvector](https://github.com/pgvector/pgvector) |
-| LLMs | Claude, OpenAI and Gemini behind one provider interface |
+| LLMs | Claude, OpenAI and Gemini behind one provider interface; [LangGraph](https://langchain-ai.github.io/langgraph/) for agent mode |
 | Tooling | [mise](https://mise.jdx.dev) (toolchain), [just](https://just.systems) (tasks), dev container, GitHub Actions |
 | Cloud | Google Cloud Run, Neon serverless Postgres, Cloudflare (DNS + Worker), Terraform, deploys from GitHub Actions |
 
@@ -65,6 +65,7 @@ company knowledge base, and ask the questions in
 | `POST /api/search` | Top-k passages for a query, with similarity scores |
 | `GET /api/models` | Configured LLM providers, their allowed models, and the default |
 | `POST /api/ask` | Stream an answer with citations (Server-Sent Events) |
+| `POST /api/agent` | Run a research task through the agent, streaming its trace and answer |
 
 ## How answering works
 
@@ -99,6 +100,42 @@ Each provider wraps its official SDK behind one small streaming interface
 ([`llm/base.py`](backend/src/docpilot/llm/base.py)), so adding one is a single file.
 
 Interactive API docs are at http://localhost:8000/docs while `just dev-api` is running.
+
+## Agent mode
+
+**Research** mode (the toggle above the chat) takes a task rather than a single question, for
+example *"Which model and cloud plan suit a vineyard with no Wi-Fi, and what would the first
+year cost?"*. Three roles work through it in a [LangGraph](https://langchain-ai.github.io/langgraph/)
+graph ([`agent/graph.py`](backend/src/docpilot/agent/graph.py)):
+
+```mermaid
+flowchart LR
+    T[Task] --> R["Researcher<br/>searches with tools,<br/>writes cited notes"]
+    R --> A{"Analyst<br/>are the notes enough?"}
+    A -- "gaps, round < 2" --> R
+    A -- enough --> W["Writer<br/>streams the cited answer"]
+```
+
+- **The researcher** calls tools: `list_documents` and `search_library`, up to 6 calls a
+  round, with short single-topic queries (long keyword lists retrieve general passages and miss
+  specific ones). Every passage it sees gets one number for the whole run, so the writer's `[n]`
+  citations link to the same sources panel as in Ask mode.
+- **The analyst** checks the notes against the sources and returns a structured verdict:
+  `corrections` (claims the sources don't support, wrong units, arithmetic slips), `gaps`
+  (things a new search could find) and a `summary`. Gaps send the researcher back, at most
+  twice, and research also stops when a round finds no new passages. A claim that the library
+  doesn't cover something counts only after a focused search for it.
+- **The writer** answers only from the notes and sources, under the same citation and
+  injection rules as Ask mode.
+- **The run is visible.** `POST /api/agent` streams each step, tool call (with a summary such as
+  "5 passages (pages 2, 3, 5)"), the notes and the analyst's verdict before the answer, and the
+  web app shows them as a trace that folds away once the answer arrives.
+
+The same graph runs on Claude, OpenAI or Gemini through LangChain's chat models, chosen per
+request from the same allowlist. LangGraph loads on the first agent run, so it doesn't slow
+cold starts. On the public demo a run counts as 5 questions against the hourly limit, since it
+makes several model calls (one test run on Claude Haiku took 2 rounds, 8 tool calls and about 40K
+input tokens).
 
 ## Evaluation
 
