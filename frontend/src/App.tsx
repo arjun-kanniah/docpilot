@@ -1,7 +1,17 @@
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { api, type DocumentInfo, type Health, type ModelsInfo, type SearchHit } from './api'
+import { ChatList } from './ChatList'
 import { ChatTurn, type Mode, type Turn } from './ChatTurn'
 import { DocumentsPanel, type Notice } from './DocumentsPanel'
+import {
+  historyFor,
+  loadThreads,
+  newThread,
+  saveThreads,
+  scopeFor,
+  type Thread,
+  titleFor,
+} from './threads'
 
 const MODEL_KEY = 'docpilot.model'
 
@@ -26,6 +36,14 @@ function saveModelChoice(value: string) {
   }
 }
 
+/** Saved chats, plus a fresh one to start in. */
+function startState() {
+  const fresh = newThread()
+  const saved = loadThreads()
+  const lastTurnId = Math.max(0, ...saved.flatMap((t) => t.turns.map((turn) => turn.id)))
+  return { threads: [fresh, ...saved], activeId: fresh.id, nextTurnId: lastTurnId + 1 }
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
@@ -41,12 +59,49 @@ function App() {
   const [modelChoice, setModelChoice] = useState('')
   const [question, setQuestion] = useState('')
   const [mode, setMode] = useState<Mode>('ask')
-  const [turns, setTurns] = useState<Turn[]>([])
+  const [start] = useState(startState)
+  const [threads, setThreads] = useState<Thread[]>(start.threads)
+  const [activeId, setActiveId] = useState(start.activeId)
   const [asking, setAsking] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
-  const nextTurnId = useRef(1)
+  const nextTurnId = useRef(start.nextTurnId)
+  const active = threads.find((t) => t.id === activeId) ?? threads[0]
+  const turns = active.turns
+
+  const updateThread = (id: string, change: (thread: Thread) => Partial<Thread>) =>
+    setThreads((all) => all.map((t) => (t.id === id ? { ...t, ...change(t) } : t)))
+
+  // Save chats between answers, not on every streamed word
+  useEffect(() => {
+    if (!asking) saveThreads(threads)
+  }, [threads, asking])
+
+  function startNewChat() {
+    if (active.turns.length === 0) return
+    const fresh = newThread()
+    setThreads((all) => [fresh, ...all.filter((t) => t.turns.length > 0)])
+    setActiveId(fresh.id)
+    stickToBottom.current = true
+  }
+
+  function selectChat(id: string) {
+    setThreads((all) => all.filter((t) => t.turns.length > 0 || t.id === id))
+    setActiveId(id)
+    setDocsOpen(false)
+    stickToBottom.current = true
+  }
+
+  function deleteChat(id: string) {
+    if (id !== activeId) {
+      setThreads((all) => all.filter((t) => t.id !== id))
+      return
+    }
+    const fresh = newThread()
+    setThreads((all) => [fresh, ...all.filter((t) => t.id !== id && t.turns.length > 0)])
+    setActiveId(fresh.id)
+  }
 
   const refreshDocuments = useCallback(() => {
     api
@@ -86,6 +141,11 @@ function App() {
     for (const file of Array.from(files)) {
       try {
         const result = await api.uploadDocument(file)
+        // In a chat limited to some documents, a new upload joins them
+        if (active.documentIds !== null && !active.documentIds.includes(result.document.id)) {
+          const id = result.document.id
+          updateThread(active.id, (t) => ({ documentIds: [...(t.documentIds ?? []), id] }))
+        }
         messages.push(
           result.duplicate
             ? `${file.name}: already uploaded`
@@ -116,34 +176,47 @@ function App() {
     if (!text || asking || !modelChoice) return
     const [provider, model] = modelChoice.split(':')
     const id = nextTurnId.current++
+    const threadId = active.id
+    const context = {
+      history: historyFor(active.turns),
+      document_ids: scopeFor(
+        active,
+        documents.map((d) => d.id),
+      ),
+    }
     const update = (patch: Partial<Turn> | ((turn: Turn) => Partial<Turn>)) =>
-      setTurns((all) =>
-        all.map((t) => {
-          if (t.id !== id) return t
-          return { ...t, ...(typeof patch === 'function' ? patch(t) : patch) }
-        }),
-      )
+      updateThread(threadId, (thread) => ({
+        turns: thread.turns.map((t) =>
+          t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t,
+        ),
+      }))
 
     const controller = new AbortController()
     abortRef.current = controller
     stickToBottom.current = true
     setQuestion('')
     setAsking(true)
-    setTurns((all) => [
-      ...all,
-      {
-        id,
-        mode,
-        question: text,
-        answer: '',
-        sources: null,
-        usage: null,
-        trace: [],
-        error: null,
-        pending: true,
-      },
-    ])
+    updateThread(threadId, (thread) => ({
+      title: thread.title || titleFor(text),
+      updatedAt: Date.now(),
+      turns: [
+        ...thread.turns,
+        {
+          id,
+          mode,
+          question: text,
+          answer: '',
+          sources: null,
+          usage: null,
+          trace: [],
+          rewrite: null,
+          error: null,
+          pending: true,
+        },
+      ],
+    }))
     const handlers = {
+      onRewrite: (rewrite: string) => update({ rewrite }),
       onSources: (sources: SearchHit[]) => update({ sources }),
       onDelta: (delta: string) => update((t) => ({ answer: t.answer + delta })),
       onDone: (usage: Turn['usage']) => update({ usage }),
@@ -152,12 +225,12 @@ function App() {
     try {
       if (mode === 'research') {
         await api.agent(
-          { task: text, provider, model },
+          { task: text, provider, model, ...context },
           { ...handlers, onTrace: (item) => update((t) => ({ trace: [...t.trace, item] })) },
           controller.signal,
         )
       } else {
-        await api.ask({ question: text, provider, model }, handlers, controller.signal)
+        await api.ask({ question: text, provider, model, ...context }, handlers, controller.signal)
       }
     } catch (err) {
       update({ error: controller.signal.aborted ? 'Stopped.' : errorMessage(err) })
@@ -176,6 +249,13 @@ function App() {
   }
 
   const docCount = `${documents.length} indexed document${documents.length === 1 ? '' : 's'}`
+  const scoped = scopeFor(
+    active,
+    documents.map((d) => d.id),
+  )
+  const scopeNote = scoped
+    ? `This chat searches ${scoped.length} of ${documents.length} documents.`
+    : ''
   const emptyMessage =
     models !== null && models.providers.length === 0
       ? 'No LLM provider is configured. Add ANTHROPIC_API_KEY, GEMINI_API_KEY or ' +
@@ -203,6 +283,24 @@ function App() {
             ×
           </button>
         </div>
+        <button
+          type="button"
+          className="ghost-button sidebar-new-chat"
+          onClick={() => {
+            startNewChat()
+            setDocsOpen(false)
+          }}
+          disabled={asking || turns.length === 0}
+        >
+          + New chat
+        </button>
+        <ChatList
+          threads={threads}
+          activeId={active.id}
+          disabled={asking}
+          onSelect={selectChat}
+          onDelete={deleteChat}
+        />
         <DocumentsPanel
           documents={documents}
           readOnly={health?.demo ?? false}
@@ -210,6 +308,12 @@ function App() {
           notice={notice}
           onUpload={(files) => void handleUpload(files)}
           onDelete={(doc) => void handleDelete(doc)}
+          scope={scopeFor(
+            active,
+            documents.map((d) => d.id),
+          )}
+          onScopeChange={(scope) => updateThread(active.id, () => ({ documentIds: scope }))}
+          scopeLocked={asking}
         />
       </aside>
       {docsOpen && <div className="scrim" onClick={() => setDocsOpen(false)} aria-hidden />}
@@ -221,7 +325,7 @@ function App() {
             className="ghost-button drawer-open"
             onClick={() => setDocsOpen(true)}
           >
-            Documents ({documents.length})
+            Chats & documents
           </button>
           <div className="mode-switch" role="group" aria-label="Mode">
             {(['ask', 'research'] as const).map((m) => (
@@ -263,7 +367,7 @@ function App() {
             <button
               type="button"
               className="ghost-button new-chat"
-              onClick={() => setTurns([])}
+              onClick={startNewChat}
               disabled={asking}
             >
               New chat
@@ -315,10 +419,10 @@ function App() {
         </form>
         <p className="composer-hint">
           {mode === 'ask'
-            ? 'Each question is answered on its own from your documents.'
+            ? 'Follow-up questions build on this chat.'
             : 'Research mode: a researcher searches, an analyst checks the notes, a writer ' +
               `answers. Slower${health?.demo ? ', and counts as 5 questions on the demo' : ''}.`}{' '}
-          Enter to send, Shift+Enter for a new line.
+          {scopeNote} Enter to send, Shift+Enter for a new line.
         </p>
       </main>
     </div>

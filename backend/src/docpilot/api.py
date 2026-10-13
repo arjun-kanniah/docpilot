@@ -15,6 +15,7 @@ from docpilot.chunking import UnsupportedFileError
 from docpilot.config import Settings, get_settings
 from docpilot.db import get_session
 from docpilot.embeddings import Embedder, get_embedder
+from docpilot.followup import recent, standalone
 from docpilot.ingest import EmptyDocumentError, SearchHit, ingest_document, search_chunks
 from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice, LLMConfigError, LLMRegistry, get_llm_registry
@@ -30,6 +31,7 @@ from docpilot.schemas import (
     ProviderOut,
     SearchHitOut,
     SearchIn,
+    TurnIn,
 )
 
 log = logging.getLogger(__name__)
@@ -142,9 +144,25 @@ def list_models(registry: RegistryDep) -> ModelsOut:
 
 @dataclass(frozen=True)
 class AskPlan:
-    question: str
+    question: str  # standalone: a follow-up rewritten with what it refers to
+    rewritten: bool
     hits: list[SearchHit]
     choice: Choice
+    history: list[TurnIn]
+    rewrite_usage: Usage
+
+
+def make_standalone(choice: Choice, history: list[TurnIn], message: str) -> tuple[str, Usage]:
+    """A follow-up rewritten to stand alone. If that call fails, the message is used as it is."""
+    try:
+        return standalone(choice.chat, choice.model, history, message)
+    except LLMError as exc:
+        log.warning("follow-up rewrite failed (%s/%s): %s", choice.provider, choice.model, exc)
+        return message, Usage(0, 0)
+
+
+def add_usage(a: Usage, b: Usage) -> Usage:
+    return Usage(a.input_tokens + b.input_tokens, a.output_tokens + b.output_tokens)
 
 
 def prepare_ask(
@@ -166,8 +184,10 @@ def prepare_ask(
         if refusal := limiter.check(visitor_id(request, settings.proxy_secret.get_secret_value())):
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, refusal)
         k = min(k, settings.answer_top_k)  # bigger prompts cost more
-    hits = search_chunks(session, embedder, body.question, k)
-    return AskPlan(body.question, hits, choice)
+    history = recent(body.history)
+    question, rewrite_usage = make_standalone(choice, history, body.question)
+    hits = search_chunks(session, embedder, question, k, body.document_ids)
+    return AskPlan(question, question != body.question, hits, choice, history, rewrite_usage)
 
 
 @router.post("/ask", response_class=EventSourceResponse)
@@ -176,15 +196,23 @@ def ask(
 ) -> Iterator[ServerSentEvent]:
     """Stream an answer as Server-Sent Events.
 
-    Events: `sources` (the numbered passages citations refer to), then `delta` (answer
-    text) repeatedly, then `done` (model and token usage) or `error`.
+    Events: `rewrite` (only for a follow-up: the standalone question that was searched for),
+    `sources` (the numbered passages citations refer to), then `delta` (answer text)
+    repeatedly, then `done` (model and token usage) or `error`.
     """
     choice = plan.choice
+    if plan.rewritten:
+        yield ServerSentEvent(event="rewrite", data={"question": plan.question})
     yield ServerSentEvent(event="sources", data=[SearchHitOut(**asdict(hit)) for hit in plan.hits])
     usage = Usage(0, 0)
     try:
         for item in stream_answer(
-            choice.chat, choice.model, plan.question, plan.hits, settings.answer_max_tokens
+            choice.chat,
+            choice.model,
+            plan.question,
+            plan.hits,
+            settings.answer_max_tokens,
+            plan.history,
         ):
             if isinstance(item, Usage):
                 usage = item
@@ -198,6 +226,7 @@ def ask(
         log.exception("ask failed (%s/%s)", choice.provider, choice.model)
         yield ServerSentEvent(event="error", data={"message": "Something went wrong."})
         return
+    usage = add_usage(usage, plan.rewrite_usage)
     log.info(
         "ask %s/%s: %d in, %d out tokens",
         choice.provider,
@@ -211,13 +240,22 @@ def ask(
     )
 
 
+@dataclass(frozen=True)
+class AgentPlan:
+    task: str  # standalone: a follow-up rewritten with what it refers to
+    rewritten: bool
+    document_ids: list[uuid.UUID] | None
+    choice: Choice
+    rewrite_usage: Usage
+
+
 def prepare_agent(
     body: AgentIn,
     request: Request,
     settings: SettingsDep,
     registry: RegistryDep,
     limiter: LimiterDep,
-) -> tuple[AgentIn, Choice]:
+) -> AgentPlan:
     """Validate and rate-limit before the stream opens, so refusals get a normal 4xx."""
     try:
         choice = registry.resolve(body.provider, body.model)
@@ -230,12 +268,13 @@ def prepare_agent(
                 status.HTTP_429_TOO_MANY_REQUESTS,
                 f"{refusal} An agent run counts as {settings.agent_question_cost} questions.",
             )
-    return body, choice
+    task, rewrite_usage = make_standalone(choice, recent(body.history), body.task)
+    return AgentPlan(task, task != body.task, body.document_ids, choice, rewrite_usage)
 
 
 @router.post("/agent", response_class=EventSourceResponse)
 def agent(
-    prepared: Annotated[tuple[AgentIn, Choice], Depends(prepare_agent)],
+    plan: Annotated[AgentPlan, Depends(prepare_agent)],
     session: SessionDep,
     embedder: EmbedderDep,
     settings: SettingsDep,
@@ -243,7 +282,8 @@ def agent(
 ) -> Iterator[ServerSentEvent]:
     """Run a task through the researcher, analyst and writer, streaming the run as it happens.
 
-    Events: `step` (a node starts), `tool` (a tool call and a summary of its result),
+    Events: `rewrite` (only for a follow-up: the standalone task the agent works on), `step`
+    (a node starts), `tool` (a tool call and a summary of its result),
     `sources` (every passage found so far, numbered for citations), `notes` (the researcher's
     findings), `review` (the analyst's verdict), `delta` (answer text), then `done` (model,
     rounds, tool calls and token usage) or `error`.
@@ -252,8 +292,13 @@ def agent(
     from docpilot.agent.graph import Limits, build_graph, run_agent
     from docpilot.agent.tools import SourceBook, make_tools
 
-    body, choice = prepared
-    if session.scalar(select(func.count()).select_from(Document)) == 0:
+    choice = plan.choice
+    if plan.rewritten:
+        yield ServerSentEvent(event="rewrite", data={"question": plan.task})
+    in_scope = select(func.count()).select_from(Document)
+    if plan.document_ids is not None:
+        in_scope = in_scope.where(Document.id.in_(plan.document_ids))
+    if session.scalar(in_scope) == 0:
         yield ServerSentEvent(event="delta", data={"text": NO_SOURCES_ANSWER})
         yield ServerSentEvent(
             event="done", data={"provider": choice.provider, "model": choice.model}
@@ -267,15 +312,17 @@ def agent(
     graph = build_graph(
         build_model(choice.provider, choice.model, limits.step_max_tokens),
         build_model(choice.provider, choice.model, settings.answer_max_tokens),
-        make_tools(session, embedder, book, settings.agent_search_k),
+        make_tools(session, embedder, book, settings.agent_search_k, plan.document_ids),
         book,
         limits,
     )
     try:
-        for event, data in run_agent(graph, body.task):
+        for event, data in run_agent(graph, plan.task):
             if event == "sources":
                 data = [SearchHitOut(**asdict(hit)) for hit in data]
             elif event == "done":
+                data["input_tokens"] += plan.rewrite_usage.input_tokens
+                data["output_tokens"] += plan.rewrite_usage.output_tokens
                 log.info("agent %s/%s: %s", choice.provider, choice.model, data)
                 data = {"provider": choice.provider, "model": choice.model, **data}
             yield ServerSentEvent(event=event, data=data)

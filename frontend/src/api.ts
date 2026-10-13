@@ -51,7 +51,15 @@ export type TraceItem =
       stop_reason: 'round_limit' | 'no_new_passages' | null
     }
 
+export type ChatContext = {
+  /** Earlier turns, so a follow-up can be understood. */
+  history?: { question: string; answer: string }[]
+  /** Search only these documents; omitted or null searches the whole library. */
+  document_ids?: string[] | null
+}
+
 export type AgentHandlers = {
+  onRewrite: (question: string) => void
   onTrace: (item: TraceItem) => void
   onSources: (sources: SearchHit[]) => void
   onDelta: (text: string) => void
@@ -60,6 +68,7 @@ export type AgentHandlers = {
 }
 
 export type AskHandlers = {
+  onRewrite: (question: string) => void
   onSources: (sources: SearchHit[]) => void
   onDelta: (text: string) => void
   onDone: (usage: AskUsage) => void
@@ -118,7 +127,7 @@ async function postEvents(
 
 /** POST /api/ask: sources, then the streamed answer, then usage. */
 function ask(
-  body: { question: string } & Partial<ModelChoice>,
+  body: { question: string } & Partial<ModelChoice> & ChatContext,
   handlers: AskHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -126,7 +135,8 @@ function ask(
     '/api/ask',
     body,
     (event, payload) => {
-      if (event === 'sources') handlers.onSources(payload as SearchHit[])
+      if (event === 'rewrite') handlers.onRewrite((payload as { question: string }).question)
+      else if (event === 'sources') handlers.onSources(payload as SearchHit[])
       else if (event === 'delta') handlers.onDelta((payload as { text: string }).text)
       else if (event === 'done') handlers.onDone(payload as AskUsage)
       else if (event === 'error') handlers.onError((payload as { message: string }).message)
@@ -137,7 +147,7 @@ function ask(
 
 /** POST /api/agent: the run's trace as it happens, sources, the streamed answer, then totals. */
 function agent(
-  body: { task: string } & Partial<ModelChoice>,
+  body: { task: string } & Partial<ModelChoice> & ChatContext,
   handlers: AgentHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -145,7 +155,8 @@ function agent(
     '/api/agent',
     body,
     (event, payload) => {
-      if (event === 'sources') handlers.onSources(payload as SearchHit[])
+      if (event === 'rewrite') handlers.onRewrite((payload as { question: string }).question)
+      else if (event === 'sources') handlers.onSources(payload as SearchHit[])
       else if (event === 'delta') handlers.onDelta((payload as { text: string }).text)
       else if (event === 'done') handlers.onDone(payload as AgentUsage)
       else if (event === 'error') handlers.onError((payload as { message: string }).message)

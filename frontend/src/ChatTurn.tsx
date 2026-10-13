@@ -12,6 +12,8 @@ export type Turn = {
   sources: SearchHit[] | null
   usage: AskUsage | AgentUsage | null
   trace: TraceItem[]
+  /** A follow-up as the server rewrote it to stand alone, which is what was searched for. */
+  rewrite: string | null
   error: string | null
   pending: boolean
 }
@@ -28,6 +30,11 @@ export function ChatTurn({ turn }: { turn: Turn }) {
         {turn.question}
       </p>
       <div className="reply" aria-live={turn.pending ? 'polite' : 'off'}>
+        {turn.rewrite && (
+          <p className="rewrite muted" title="A follow-up, rewritten with what it refers to">
+            {turn.mode === 'ask' ? 'Searched for' : 'Researched'}: {turn.rewrite}
+          </p>
+        )}
         {turn.mode === 'research' && (
           <Trace items={turn.trace} running={turn.pending && !turn.answer} />
         )}

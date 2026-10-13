@@ -723,3 +723,76 @@ h3 {
 .trace-detail ul {
   margin: 4px 0 0;
 }
+
+/* Chats */
+
+.sidebar-new-chat {
+  width: 100%;
+  text-align: left;
+}
+
+.chats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+
+.chat-list {
+  margin: 0;
+  padding: 0;
+  max-height: 32vh;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chat-list li {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.chat-list li:hover,
+.chat-list li.active {
+  background: var(--surface);
+}
+
+.chat-link {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-list li.active .chat-link {
+  font-weight: 600;
+}
+
+.chat-list .icon-button {
+  opacity: 0;
+}
+
+.chat-list li:hover .icon-button,
+.chat-list .icon-button:focus-visible {
+  opacity: 1;
+}
+
+.scope-check {
+  flex-shrink: 0;
+  margin: 0 4px 0 0;
+  accent-color: var(--accent);
+}
+
+.rewrite {
+  font-size: 0.8rem;
+  font-style: italic;
+}

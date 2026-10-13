@@ -33,14 +33,28 @@ class SearchHitOut(BaseModel):
     score: float
 
 
-class AskIn(BaseModel):
+class TurnIn(BaseModel):
+    """An earlier question and answer in the same chat."""
+
+    question: str = Field(max_length=2000)
+    answer: str = Field(max_length=50_000)
+
+
+class ChatContext(BaseModel):
+    # Earlier turns, oldest first; only the last few are used
+    history: list[TurnIn] = Field(default_factory=list, max_length=50)
+    # Search only these documents; None searches the whole library
+    document_ids: list[uuid.UUID] | None = Field(default=None, min_length=1, max_length=500)
+
+
+class AskIn(ChatContext):
     question: str = Field(min_length=1, max_length=2000)
     k: int | None = Field(default=None, ge=1, le=20)
     provider: str | None = None
     model: str | None = None
 
 
-class AgentIn(BaseModel):
+class AgentIn(ChatContext):
     task: str = Field(min_length=1, max_length=2000)
     provider: str | None = None
     model: str | None = None

@@ -19,6 +19,10 @@ type Props = {
   notice: Notice | null
   onUpload: (files: FileList) => void
   onDelete: (doc: DocumentInfo) => void
+  /** Documents the current chat searches; null means all of them. */
+  scope: string[] | null
+  onScopeChange: (scope: string[] | null) => void
+  scopeLocked: boolean
 }
 
 /** Upload (button or drag and drop) and the list of indexed documents. */
@@ -29,7 +33,20 @@ export function DocumentsPanel({
   notice,
   onUpload,
   onDelete,
+  scope,
+  onScopeChange,
+  scopeLocked,
 }: Props) {
+  const allIds = documents.map((d) => d.id)
+  const inScope = (id: string) => scope === null || scope.includes(id)
+  const chosen = allIds.filter(inScope)
+
+  function toggle(id: string) {
+    const next = inScope(id) ? chosen.filter((x) => x !== id) : [...chosen, id]
+    if (next.length === 0) return // a chat searches at least one document
+    onScopeChange(next.length === allIds.length ? null : next)
+  }
+
   const [dragging, setDragging] = useState(false)
 
   function handleDrop(event: DragEvent) {
@@ -87,7 +104,12 @@ export function DocumentsPanel({
       )}
 
       <h2 className="section-label">
-        Documents <span className="count">{documents.length}</span>
+        Documents{' '}
+        <span className="count">
+          {chosen.length < documents.length
+            ? `${chosen.length} of ${documents.length} in this chat`
+            : documents.length}
+        </span>
       </h2>
       {documents.length === 0 ? (
         <p className="hint">Nothing indexed yet.</p>
@@ -95,6 +117,15 @@ export function DocumentsPanel({
         <ul className="doc-list">
           {documents.map((doc) => (
             <li key={doc.id} title={doc.filename}>
+              <input
+                type="checkbox"
+                className="scope-check"
+                checked={inScope(doc.id)}
+                disabled={scopeLocked || (inScope(doc.id) && chosen.length === 1)}
+                onChange={() => toggle(doc.id)}
+                aria-label={`Use ${doc.filename} in this chat`}
+                title="Use in this chat"
+              />
               <div>
                 <span className="doc-name">{doc.filename}</span>
                 <span className="doc-meta">

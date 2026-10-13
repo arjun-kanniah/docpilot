@@ -1,3 +1,5 @@
+import uuid
+from collections.abc import Collection
 from dataclasses import dataclass, field
 
 from langchain_core.tools import BaseTool, tool
@@ -33,16 +35,22 @@ def make_tools(
     embedder: Embedder,
     book: SourceBook,
     k: int,
+    document_ids: Collection[uuid.UUID] | None = None,
 ) -> list[BaseTool]:
+    """Tools over the library, or only the given documents when the chat is scoped to some."""
+
     @tool
     def list_documents() -> str:
         """List the documents in the library with their page counts."""
-        rows = session.execute(
+        statement = (
             select(Document.filename, Document.page_count, func.count(Chunk.id))
             .outerjoin(Chunk)
             .group_by(Document.id)
             .order_by(Document.filename)
-        ).all()
+        )
+        if document_ids is not None:
+            statement = statement.where(Document.id.in_(document_ids))
+        rows = session.execute(statement).all()
         if not rows:
             return "The library is empty."
         return "\n".join(
@@ -60,7 +68,7 @@ def make_tools(
             query: A short phrase about one topic, like "education discount". Long queries
                 listing several topics return general passages and miss specific ones.
         """
-        hits = search_chunks(session, embedder, query, k)
+        hits = search_chunks(session, embedder, query, k, document_ids)
         if not hits:
             return "No passages found."
         return "\n\n".join(format_source(book.number(hit), hit) for hit in hits)
