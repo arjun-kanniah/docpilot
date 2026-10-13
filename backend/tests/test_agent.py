@@ -75,7 +75,7 @@ def text(content: str) -> AIMessage:
 
 
 def review(
-    sufficient: bool, gaps: list[str] | None = None, corrections: list[str] | None = None
+    sufficient: bool, gaps: list[str] | None = None, corrections: list[dict] | None = None
 ) -> AIMessage:
     args = {
         "sufficient": sufficient,
@@ -316,11 +316,12 @@ def test_trace_summaries() -> None:
 
 
 def test_the_analyst_checks_notes_against_sources_and_corrects_them(run_agent) -> None:
-    fix = "The plan is priced per account, not per station [1]."
+    fix = {"notes_say": "$129 per station", "source_says": "$129 per account", "source": 1}
+    same = {"notes_say": "30 days", "source_says": "30 days", "source": 1}  # not an error
     script = Script(
         search("refunds"),
         text("- $129 per station [1]"),
-        review(True, corrections=[fix]),
+        review(True, corrections=[fix, same]),
         text("One plan, $129 [1]."),
     )
 
@@ -330,5 +331,26 @@ def test_the_analyst_checks_notes_against_sources_and_corrects_them(run_agent) -
     assert '<source id="1" file="guide.md">' in analyst_prompt  # it can check the claims
     assert '- "refunds"' in analyst_prompt
     review_data = next(data for name, data in events if name == "review")
-    assert review_data["corrections"] == [fix] and review_data["next"] == "writer"
-    assert fix in script.calls[-1][-1].content  # the writer applies it
+    expected = "The notes say $129 per station; source [1] says $129 per account."
+    assert review_data["corrections"] == [expected] and review_data["next"] == "writer"
+    assert expected in script.calls[-1][-1].content  # the writer applies it
+
+
+def test_a_researcher_that_keeps_calling_tools_is_cut_off(run_agent) -> None:
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, agent_max_tool_calls=1
+    )
+    script = Script(
+        *[search(f"q{i}", f"c{i}") for i in range(3)],  # budget 1, then 2 spare turns
+        review(True),
+        text("Answer."),
+    )
+
+    events = run_agent(script)
+
+    assert len([n for n, _ in events if n == "tool"]) == 1
+    assert next(d for n, d in events if n == "notes")["text"] == "(No notes.)"
+    assert events[-1][0] == "done"
+    # Every researcher turn extends the same conversation: nothing earlier is rewritten.
+    first, second, third = script.calls[:3]
+    assert second[: len(first)] == first and third[: len(second)] == second

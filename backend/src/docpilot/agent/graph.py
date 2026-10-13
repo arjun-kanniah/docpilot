@@ -43,10 +43,11 @@ ANALYST_PROMPT = """\
 You review research notes before a writer turns them into the answer to a task. You see the \
 task, the searches run, the notes, and the numbered sources the notes cite.
 
-1. Check the notes against the sources. List as corrections any claim a source doesn't \
-support, a unit that's wrong (for example a price per account treated as per station), or an \
-arithmetic mistake, each with the correct statement and its source number. Only list \
-real errors; leave the list empty when the notes are accurate.
+1. Check the notes against the sources. Record a correction only where the notes contradict \
+a source: a claim it doesn't support, a wrong unit (for example a price per account treated \
+as per station), or an arithmetic mistake. Each correction says what the notes say and what \
+the source says instead. Claims you checked and found accurate are not corrections; never \
+record one to say "no error". Most notes need no corrections.
 2. Decide whether the writer can answer now. A gap is a part of the task that the notes miss \
 and that a new search could plausibly find; list at most 3, each as a short search phrase. \
 When the notes say the library doesn't cover something, check the searches run: if none was \
@@ -78,6 +79,17 @@ class Limits:
     step_max_tokens: int = 4000  # researcher and analyst replies
 
 
+class Correction(BaseModel):
+    """A claim in the notes that a source contradicts."""
+
+    notes_say: str = Field(description="The wrong claim, as the notes state it.")
+    source_says: str = Field(description="What the source says instead.")
+    source: int = Field(description="The number of the source that shows the error.")
+
+    def __str__(self) -> str:
+        return f"The notes say {self.notes_say}; source [{self.source}] says {self.source_says}."
+
+
 class Review(BaseModel):
     """The analyst's verdict on the research notes."""
 
@@ -88,11 +100,9 @@ class Review(BaseModel):
     gaps: list[str] = Field(
         default_factory=list, description="Specific things to search for next, at most 3."
     )
-    corrections: list[str] = Field(
+    corrections: list[Correction] = Field(
         default_factory=list,
-        description="Errors only: claims in the notes the sources don't support, wrong units "
-        "or arithmetic, each with the correct statement and its source number. Empty when the "
-        "notes are accurate.",
+        description="Only where the notes contradict a source. Usually empty.",
     )
     summary: str = Field(description="One or two sentences on coverage, for the writer.")
 
@@ -173,11 +183,16 @@ def build_graph(
         calls = 0
         searches: list[str] = []
         known_at_start = len(book.hits)
+        # Past the tool budget, calls get a "write your notes" reply instead of results. The
+        # conversation is only ever appended to, with the same tools bound: some models (Claude
+        # with thinking) reject a turn whose earlier context changed. A few spare turns cap it.
+        turns_left = limits.max_tool_calls + 2
         while True:
             reply = researcher_model.invoke(messages)
             _add(totals, reply)
             messages.append(reply)
-            if not isinstance(reply, AIMessage) or not reply.tool_calls:
+            turns_left -= 1
+            if not isinstance(reply, AIMessage) or not reply.tool_calls or turns_left == 0:
                 break
             for call in reply.tool_calls:
                 if calls >= limits.max_tool_calls:
@@ -204,12 +219,6 @@ def build_graph(
                     if len(book.hits) > known:
                         emit({"event": "sources", "data": list(book.hits)})
                 messages.append(ToolMessage(result, tool_call_id=call["id"]))
-            if calls >= limits.max_tool_calls:
-                # One last turn without tools, so the model has to write its notes.
-                reply = model.invoke(messages)
-                _add(totals, reply)
-                messages.append(reply)
-                break
 
         notes = reply.text.strip() or "(No notes.)"
         emit({"event": "notes", "data": {"round": round_, "text": notes}})
@@ -239,7 +248,12 @@ def build_graph(
             sufficient=True, summary="The review couldn't be read; writing from the notes."
         )
         gaps = [] if review.sufficient else review.gaps[:3]
-        corrections = review.corrections[:5]
+        # A "correction" that restates the notes isn't one, whatever the model says.
+        corrections = [
+            str(fix)
+            for fix in review.corrections
+            if fix.notes_say.strip().lower() != fix.source_says.strip().lower()
+        ][:5]
         # Another round only helps if there is something to look for, rounds are left, and the
         # latest round still turned up passages it hadn't seen.
         stop_reason = None
