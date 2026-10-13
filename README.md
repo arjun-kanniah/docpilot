@@ -10,11 +10,11 @@ The LLM provider is switchable per request.
 company's five-document library (read-only, cheap models, rate-limited). See [Deploying](#deploying)
 for how it runs.
 
-![DocPilot answering a cited question in Ask mode, then working through a research task in Research mode](docs/demo.gif)
+![DocPilot answering a question and a follow-up in Ask mode, then working through a research task in Research mode](docs/demo.gif)
 
-<sub>Recorded on the live demo with Claude Haiku: a question in Ask mode, then a task in
-[Research mode](#agent-mode) across the five-document library, ending on how the answer was
-researched. Waits for the model are shortened.</sub>
+<sub>Recorded on the live demo with Claude Haiku: a question and a follow-up in Ask mode, then a
+task in [Research mode](#agent-mode) in a new chat, across the five-document library, ending
+on how the answer was researched. Waits for the model are shortened.</sub>
 
 ## Stack
 
