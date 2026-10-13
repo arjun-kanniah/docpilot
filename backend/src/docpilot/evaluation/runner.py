@@ -21,7 +21,8 @@ from docpilot.llm.providers import Choice
 
 DEMO_DIR = BACKEND_DIR.parent / "demo"
 EVAL_SET = DEMO_DIR / "eval_set.json"
-CORPUS = [DEMO_DIR / "aurora_knowledge_base.pdf"]
+LIBRARY_DIR = DEMO_DIR / "library"  # the public demo's documents
+CORPUS = [LIBRARY_DIR / "aurora_knowledge_base.pdf"]  # what eval_set.json is written against
 
 _CITATION = re.compile(r"\[(\d+)\]")
 

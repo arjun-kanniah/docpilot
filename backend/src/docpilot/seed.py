@@ -1,6 +1,6 @@
 """Index files into the configured database, skipping any that are already there.
 
-    python -m docpilot.seed demo/aurora_knowledge_base.pdf
+    python -m docpilot.seed demo/library/*
 
 The deploy job runs this after migrations to load the public demo's documents.
 """

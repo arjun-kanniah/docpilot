@@ -54,7 +54,7 @@ export function DocumentsPanel({
       {readOnly ? (
         <p className="demo-note">
           <strong>Public demo.</strong> Ask about Aurora Instruments, a fictional company whose
-          knowledge base is loaded here. Uploads are off;{' '}
+          documents are loaded here; newer ones update some older figures. Uploads are off;{' '}
           <a href="https://github.com/arjun-kanniah/docpilot" target="_blank" rel="noreferrer">
             run DocPilot locally
           </a>{' '}

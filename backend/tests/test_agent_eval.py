@@ -1,8 +1,11 @@
+import pytest
+
 from docpilot.evaluation.agent import (
     AgentCase,
     AgentRun,
     AgentTask,
-    load_agent_tasks,
+    load_agent_set,
+    matches,
     oracle_run,
     run_and_grade,
     states_figure,
@@ -11,11 +14,13 @@ from docpilot.evaluation.agent import (
 from docpilot.evaluation.grader import Grade
 from docpilot.llm.base import Usage
 
-CATEGORIES = {"multi-page", "conditional", "calculation", "negative"}
+CATEGORIES = {"multi-page", "multi-document", "conflict", "conditional", "calculation", "negative"}
 
 
-def task(id_: str, pages: tuple[int, ...] = (2, 3), figures: tuple[str, ...] = ()) -> AgentTask:
-    return AgentTask(id_, f"task {id_}", f"reference {id_}", pages, figures, "calculation", True)
+def task(
+    id_: str, evidence: tuple[str, ...] = ("kb.pdf#2", "kb.pdf#3"), figures: tuple[str, ...] = ()
+) -> AgentTask:
+    return AgentTask(id_, f"task {id_}", f"reference {id_}", evidence, figures, "calculation", True)
 
 
 class ScriptedGrader:
@@ -29,15 +34,20 @@ class ScriptedGrader:
         return Grade(reason="scripted", abstained=False, verdict=verdict), Usage(100, 20)
 
 
-def test_task_set_is_consistent() -> None:
-    tasks = load_agent_tasks()
+@pytest.mark.parametrize("name", ["single", "multi"])
+def test_task_sets_are_consistent(name: str) -> None:
+    tasks, corpus = load_agent_set(name)
 
+    assert corpus and all(path.is_file() for path in corpus)
+    files = {path.name for path in corpus}
     assert len({t.id for t in tasks}) == len(tasks)
     assert {t.category for t in tasks} <= CATEGORIES
     for t in tasks:
-        assert bool(t.evidence_pages) == t.answerable, t.id
+        assert bool(t.evidence) == t.answerable, t.id
         assert (t.category == "negative") == (not t.answerable), t.id
-        assert set(t.evidence_pages) <= {1, 2, 3, 4, 5}, t.id
+        for ref in t.evidence:  # every reference names a document the set indexes
+            filename, _, page = ref.partition("#")
+            assert filename in files and (not page or page.isdigit()), (t.id, ref)
         # Every key figure appears in the reference, so the reference passes its own check
         assert all(states_figure(t.reference, f) for f in t.key_figures), t.id
 
@@ -53,18 +63,27 @@ def test_figures_match_whole_numbers_only() -> None:
 
 
 def test_evidence_citation_and_figure_checks() -> None:
-    case = AgentCase(task("r1", pages=(2, 3), figures=("1,393.80", "77.40")))
-    case.run = AgentRun("Total $1,393.80 [1][3].", [2, 4, 3], 1, 4, Usage(10, 5))
+    case = AgentCase(task("r1", evidence=("kb.pdf#2", "notes.md"), figures=("1,393.80", "77.40")))
+    sources = [("kb.pdf", 2), ("kb.pdf", 4), ("notes.md", None)]
+    case.run = AgentRun("Total $1,393.80 [1][3].", sources, 1, 4, Usage(10, 5))
     case.cited = [1, 3]
 
     assert case.found_evidence is True
     assert case.cites_evidence is True
     assert case.missing_figures == ["77.40"]
 
-    case.cited = [1, 2]  # pages 2 and 4: page 3 never cited
+    case.cited = [1, 2]  # kb.pdf pages 2 and 4: notes.md never cited
     assert case.cites_evidence is False
-    case.run.source_pages = [2, 4]
+    case.run.sources = [("kb.pdf", 2), ("kb.pdf", 4)]
     assert case.found_evidence is False
+
+
+def test_evidence_refs_match_by_file_and_page() -> None:
+    assert matches("kb.pdf#2", ("kb.pdf", 2))
+    assert not matches("kb.pdf#2", ("kb.pdf", 3))
+    assert not matches("kb.pdf#2", ("guide.pdf", 2))  # page 2 of another document
+    assert matches("notes.md", ("notes.md", None))
+    assert matches("guide.pdf", ("guide.pdf", 4))  # no page: anywhere in the file
 
 
 def test_run_grade_and_summarize() -> None:
@@ -75,9 +94,11 @@ def test_run_grade_and_summarize() -> None:
         AgentCase(task("boom")),
     ]
     runs = {
-        "a": AgentRun("It costs $10 [1][2].", [2, 3], 1, 3, Usage(1000, 100)),
-        "b": AgentRun("Partly [1].", [2], 2, 7, Usage(3000, 300)),
-        "n": AgentRun("The documents don't say.", [1], 1, 2, Usage(500, 50)),
+        "a": AgentRun(
+            "It costs $10 [1][2].", [("kb.pdf", 2), ("kb.pdf", 3)], 1, 3, Usage(1000, 100)
+        ),
+        "b": AgentRun("Partly [1].", [("kb.pdf", 2)], 2, 7, Usage(3000, 300)),
+        "n": AgentRun("The documents don't say.", [("kb.pdf", 1)], 1, 2, Usage(500, 50)),
     }
 
     def run(t: AgentTask) -> AgentRun:
@@ -99,8 +120,9 @@ def test_run_grade_and_summarize() -> None:
     assert summary.errors == 1
 
 
-def test_oracle_answers_state_every_key_figure() -> None:
-    for t in load_agent_tasks():
+@pytest.mark.parametrize("name", ["single", "multi"])
+def test_oracle_answers_state_every_key_figure(name: str) -> None:
+    for t in load_agent_set(name)[0]:
         case = AgentCase(t, run=oracle_run(t))
         assert case.missing_figures == [], t.id
 
@@ -114,7 +136,7 @@ def test_rate_limited_runs_are_retried() -> None:
         attempts.append(t.id)
         if len(attempts) < 2:
             raise ModelRateLimitError("429")
-        return AgentRun("Done [1].", [2, 3], 1, 2, Usage(1, 1))
+        return AgentRun("Done [1].", [("kb.pdf", 2), ("kb.pdf", 3)], 1, 2, Usage(1, 1))
 
     cases = [AgentCase(task("a"))]
     run_and_grade(cases, run, ScriptedGrader({"a": "correct"}), retry_wait_s=0)

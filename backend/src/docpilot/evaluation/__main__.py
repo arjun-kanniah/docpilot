@@ -24,7 +24,7 @@ from docpilot.evaluation.agent import (
     RunFn,
     agent_case_line,
     agent_summary_lines,
-    load_agent_tasks,
+    load_agent_set,
     model_run,
     null_run,
     oracle_run,
@@ -83,6 +83,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         choices=["model", "oracle", "null"],
         default="model",
         help="oracle/null feed reference answers or a refusal to check the grader",
+    )
+    agent.add_argument(
+        "--set",
+        choices=["single", "multi"],
+        default="single",
+        help="single: tasks over the knowledge base PDF; multi: over the whole demo library",
     )
     agent.add_argument("--workers", type=int, default=2, help="tasks run in parallel")
     agent.add_argument("--only", help="comma-separated task ids, e.g. r02,r07")
@@ -167,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_agent_eval(args: argparse.Namespace, settings: Settings) -> int:
-    tasks = load_agent_tasks()
+    tasks, corpus = load_agent_set(args.set)
     if args.only:
         wanted = set(args.only.split(","))
         tasks = [t for t in tasks if t.id in wanted]
@@ -181,7 +187,7 @@ def run_agent_eval(args: argparse.Namespace, settings: Settings) -> int:
     engine = create_engine(prepare_database("docpilot_eval"))
     embedder = get_embedder()
     with Session(engine, expire_on_commit=False) as session:
-        chunks = index_corpus(session, embedder, settings)
+        chunks = index_corpus(session, embedder, settings, corpus)
 
     run: RunFn
     if args.answers_from == "model":
@@ -191,14 +197,15 @@ def run_agent_eval(args: argparse.Namespace, settings: Settings) -> int:
             print(exc, file=sys.stderr)
             return 2
         run = model_run(choice.provider, choice.model, settings, engine, embedder)
-        label, model = f"agent-{choice.provider}-{choice.model}", choice.model
+        label, model = f"agent-{args.set}-{choice.provider}-{choice.model}", choice.model
     else:
         run = oracle_run if args.answers_from == "oracle" else null_run
-        label, model = f"agent-grader-check-{args.answers_from}", None
+        label, model = f"agent-{args.set}-grader-check-{args.answers_from}", None
 
     note = (
-        f"{len(tasks)} research tasks over {chunks} chunks; up to {settings.agent_max_rounds} "
-        f"rounds of {settings.agent_max_tool_calls} tool calls, {settings.agent_search_k} "
+        f"{len(tasks)} research tasks over {len(corpus)} documents ({chunks} chunks); "
+        f"up to {settings.agent_max_rounds} rounds of {settings.agent_max_tool_calls} tool "
+        f"calls, {settings.agent_search_k} "
         f"passages per search. Graded by {grader.model}."
     )
     print(note)

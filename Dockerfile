@@ -30,7 +30,7 @@ COPY --from=api /app/.venv ./.venv
 COPY --from=api --chown=docpilot /app/models ./models
 COPY backend/alembic.ini ./
 COPY backend/migrations ./migrations
-COPY demo/aurora_knowledge_base.pdf ./demo/
+COPY demo/library ./demo/library
 COPY --from=web /web/dist ./static
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \

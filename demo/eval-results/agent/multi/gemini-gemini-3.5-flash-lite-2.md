@@ -1,0 +1,24 @@
+# Research mode evaluation: agent-multi-gemini-gemini-3.5-flash-lite
+
+10 research tasks over 5 documents (23 chunks); up to 2 rounds of 6 tool calls, 5 passages per search. Graded by claude-opus-5-5.
+
+- Answers: 8 correct, 0 partial, 0 incorrect of 8
+- Declined correctly: 2 of 2 tasks the document can't answer
+- Evidence: found every needed page in 100% of runs, cited it in 88%
+- Key figures stated: 6 of 6
+- Effort: 1.0 rounds and 2.3 tool calls per task
+- Tokens: agent 100,674 in / 6,393 out (n/a); grader 12,121 in / 1,533 out ($0.079)
+- Median time per task: 5s
+
+| ID | Category | Task | Verdict | Found evidence | Key figures | Rounds / tools | Grader's reason |
+|---|---|---|---|---|---|---|---|
+| m01 | conflict | How much does a SkyNode Pro cost, and how much is the Plus cloud plan per year? | correct | yes | all | 1 / 1 | The system answer gives the SkyNode Pro price of $319 (up from $299) and the Plus plan price of $59 a year (up from $49), which matches the reference's key facts. Omitting the monthly price is minor because the question asked for the yearly cost. |
+| m02 | calculation | A school wants 6 SkyNode stations: 4 at the main campus (has Wi-Fi) and 2 at a field site with no Wi-Fi. Students need wind direction and UV readings. Recommend the models and cloud plan, and estimate the first-year cost with the education discount. | correct | yes | all | 1 / 4 | The answer matches every key fact in the reference: 4 Pro and 2 Max, hardware of $1,400.40 after the 40% discount, a Pro plan at $77.40, and a first-year total of $1,477.80. The extra justifications and the monthly-plan option don't contradict the reference. |
+| m03 | calculation | A vineyard with no mains power and no Wi-Fi wants soil moisture readings and a full year of data history. What equipment and plan do they need, and what will the first two years cost? | correct | yes | all | 1 / 4 | The system names the SkyNode Max, SolarKit ($79), Plus plan ($59/yr) and the $30/yr Aurora Cellular plan for year two. Its post-price-change column gives the reference's $756 two-year total. The added pre-price-change scenario comes from the documents and does not contradict the reference figures. |
+| m04 | conditional | Can I run a SkyNode Lite on the SolarKit at a site without mains power? | correct | yes | – | 1 / 3 | The system answer gives every key fact: the answer is no, the Lite uses a different connector and needs mains power, and the SolarKit ($79) fits only the Pro and Max. It does not explicitly recommend choosing a Pro or Max, but that follows directly from what it says, and its extra outage detail doesn't contradict the reference. |
+| m05 | conflict | Does the SkyNode Lite support 5 GHz Wi-Fi? | correct | yes | – | 1 / 1 | The system answer gives the key facts: support depends on revision, Rev A (LA-) is 2.4 GHz only, and Rev B (LB-, shipping since January 2026) supports 5 GHz. It omits the minor firmware-update detail, but that does not contradict the reference. |
+| m06 | conditional | We're a Title I school and want 2 weather stations. What can we get free, and what discount applies if we buy them instead? | correct | yes | – | 1 / 3 | The system answer covers every key fact: up to 2 free SkyNode Lite stations via the Station Grant, the 1 February to 31 March application timeline, and 15% off for buying 2 stations. It omits the note that the 40% hardware discount needs 3+ stations, but its separate mention of 40% off plans does not contradict the reference. |
+| m07 | conflict | Our school is ordering 4 SkyNode Pro stations. Do we get the hardware discount, and what will the stations cost? | correct | yes | all | 1 / 2 | The answer confirms eligibility under the 3+ station rule effective 1 September 2026, uses the $319 price and gives the correct discounted total of $765.60. It does not state the $1,276 list total, but that figure is implied by the per-unit price and is not a key fact. |
+| m08 | calculation | After the first year, what does cellular data for a SkyNode Max cost, and which billing option is cheaper? | correct | yes | all | 1 / 1 | The system answer gives the $3/month and $30/year prices and identifies annual billing as cheaper ($30 vs $36), matching every key fact in the reference. It implies the first year is included without stating it outright, which does not contradict the reference. |
+| m09 | negative | What does the SolarKit cost in euros, and is it sold in the EU? | correct | – | – | 1 / 2 | The system correctly says the euro price and EU availability aren't stated, gives the documented $79 price, and adds only related facts from the documents without guessing an answer. |
+| m10 | negative | When is the SkyNode Ultra launching, and what will it cost? | correct | – | – | 1 / 2 | The system correctly states the documents lack information on the SkyNode Ultra and mentions only the existing models, without inventing details. |

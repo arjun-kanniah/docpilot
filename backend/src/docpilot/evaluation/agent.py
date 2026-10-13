@@ -21,10 +21,14 @@ from docpilot.config import Settings
 from docpilot.embeddings import Embedder
 from docpilot.evaluation.grader import Grade
 from docpilot.evaluation.report import cost_usd
-from docpilot.evaluation.runner import DEMO_DIR, Grader
+from docpilot.evaluation.runner import DEMO_DIR, LIBRARY_DIR, Grader
 from docpilot.llm.base import Usage
 
-AGENT_EVAL_SET = DEMO_DIR / "agent_eval_set.json"
+# Each set names the documents it runs over: one PDF, or the whole demo library ("*").
+AGENT_EVAL_SETS = {
+    "single": DEMO_DIR / "agent_eval_set.json",
+    "multi": DEMO_DIR / "agent_eval_multi.json",
+}
 
 _CITATION = re.compile(r"\[(\d+)\]")
 
@@ -34,26 +38,42 @@ class AgentTask:
     id: str
     task: str
     reference: str
-    evidence_pages: tuple[int, ...]
+    evidence: tuple[str, ...]  # "file.pdf#2" for a page, or "file.md" for anywhere in a file
     key_figures: tuple[str, ...]
     category: str
     answerable: bool
 
 
-def load_agent_tasks(path: Path = AGENT_EVAL_SET) -> list[AgentTask]:
-    data = json.loads(path.read_text())
-    return [
+def load_agent_set(name: str = "single") -> tuple[list[AgentTask], list[Path]]:
+    """The set's tasks and the documents to index for it."""
+    data = json.loads(AGENT_EVAL_SETS[name].read_text())
+    corpus = data["corpus"]
+    if corpus == "*":
+        paths = sorted(p for p in LIBRARY_DIR.iterdir() if not p.name.startswith("."))
+    else:
+        paths = [LIBRARY_DIR / name for name in corpus]
+    tasks = [
         AgentTask(
             id=item["id"],
             task=item["task"],
             reference=item["reference"],
-            evidence_pages=tuple(item["evidence_pages"]),
+            evidence=tuple(item["evidence"]),
             key_figures=tuple(item["key_figures"]),
             category=item["category"],
             answerable=item["answerable"],
         )
         for item in data["items"]
     ]
+    return tasks, paths
+
+
+Source = tuple[str, int | None]  # (filename, page)
+
+
+def matches(ref: str, source: Source) -> bool:
+    """Whether a source passage is evidence ref "file#page", or "file" for any page."""
+    filename, _, page = ref.partition("#")
+    return source[0] == filename and (not page or source[1] == int(page))
 
 
 def _plain(text: str) -> str:
@@ -71,7 +91,7 @@ class AgentRun:
     """What a run produced, independent of how it was graded."""
 
     answer: str
-    source_pages: list[int | None]  # page of each numbered source, in citation order
+    sources: list[Source]  # each numbered source's file and page, in citation order
     rounds: int
     tool_calls: int
     usage: Usage
@@ -89,19 +109,19 @@ class AgentCase:
 
     @property
     def found_evidence(self) -> bool | None:
-        """Whether the run retrieved passages from every page the answer needs."""
-        if self.run is None or not self.task.evidence_pages:
+        """Whether the run retrieved a passage for every piece of evidence the answer needs."""
+        if self.run is None or not self.task.evidence:
             return None
-        return set(self.task.evidence_pages) <= set(self.run.source_pages)
+        return all(any(matches(r, s) for s in self.run.sources) for r in self.task.evidence)
 
     @property
     def cites_evidence(self) -> bool | None:
-        """Whether the answer cites a passage from each evidence page."""
-        if self.run is None or not self.task.evidence_pages:
+        """Whether the answer cites a passage for each piece of evidence."""
+        if self.run is None or not self.task.evidence:
             return None
-        pages = self.run.source_pages
-        cited = {pages[n - 1] for n in self.cited if 0 < n <= len(pages)}
-        return set(self.task.evidence_pages) <= cited
+        sources = self.run.sources
+        cited = [sources[n - 1] for n in self.cited if 0 < n <= len(sources)]
+        return all(any(matches(r, s) for s in cited) for r in self.task.evidence)
 
     @property
     def missing_figures(self) -> list[str] | None:
@@ -298,7 +318,7 @@ def write_agent_report(
                 "category": c.task.category,
                 "answerable": c.task.answerable,
                 "answer": c.run.answer if c.run else None,
-                "source_pages": c.run.source_pages if c.run else None,
+                "sources": c.run.sources if c.run else None,
                 "rounds": c.run.rounds if c.run else None,
                 "tool_calls": c.run.tool_calls if c.run else None,
                 "usage": asdict(c.run.usage) if c.run else None,
@@ -379,7 +399,7 @@ def model_run(
                     done = data
             return AgentRun(
                 answer="".join(parts),
-                source_pages=[hit.page for hit in book.hits],
+                sources=[(hit.filename, hit.page) for hit in book.hits],
                 rounds=done.get("rounds", 0),
                 tool_calls=done.get("tool_calls", 0),
                 usage=Usage(done.get("input_tokens", 0), done.get("output_tokens", 0)),

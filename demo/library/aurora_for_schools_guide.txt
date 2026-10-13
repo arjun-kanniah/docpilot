@@ -1,0 +1,47 @@
+AURORA FOR SCHOOLS: PROGRAM GUIDE, 2026-27 SCHOOL YEAR
+Effective 1 September 2026. Replaces the education discount terms in earlier Aurora documents.
+
+Aurora Instruments is a fictional company created for demonstration and testing. All names,
+figures and products are invented.
+
+
+1. WHO CAN JOIN
+
+Accredited K-12 schools, colleges and universities, and registered non-profit organizations.
+To join, email education@aurorainstruments.example with proof of eligibility (an accreditation
+letter or a non-profit registration certificate). Approval takes up to 3 business days.
+
+
+2. DISCOUNTS
+
+Verified schools and non-profit organizations receive:
+
+- 40% off AuroraLive Plus and Pro plans, monthly or annual.
+- 40% off hardware for orders of 3 or more stations. (Until 31 August 2026 this applied only
+  to orders of 5 or more.)
+- 15% off hardware for orders of 1 or 2 stations.
+
+Discounts apply to the current list prices and cannot be combined with other promotions.
+
+
+3. STATION GRANT FOR LOW-INCOME SCHOOLS
+
+Title I schools, and schools outside the US with a comparable low-income designation, may apply
+for the Station Grant: up to 2 free SkyNode Lite stations per school per school year. Grant
+applications open on 1 February each year and are decided by 31 March. A school may receive a
+grant and also buy further stations at the education discount.
+
+
+4. CLASSROOM EXTRAS
+
+- Teacher dashboard: included free with a Pro plan for verified schools. A teacher can follow
+  up to 30 student accounts and share live readings with a class.
+- Curriculum: 12 free lesson plans for grades 5 to 12, covering pressure systems, the water
+  cycle, air quality and data analysis.
+- Data export for student projects needs CSV export, which is part of the Pro plan.
+
+
+5. QUESTIONS
+
+Education team: education@aurorainstruments.example, Monday to Friday, 8 a.m. to 6 p.m.
+Mountain Time.

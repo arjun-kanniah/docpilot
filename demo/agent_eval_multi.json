@@ -1,0 +1,141 @@
+{
+  "dataset": "Aurora Instruments research tasks across the demo library",
+  "version": "1.0",
+  "description": "Tasks for DocPilot's Research mode over all five demo documents: answers that combine documents, conflicts where a newer document supersedes the knowledge base, near-duplicate passages, and two tasks the library can't answer.",
+  "corpus": "*",
+  "fields": {
+    "id": "Stable identifier",
+    "task": "What the user asks Research mode to do",
+    "reference": "A correct answer, written by a person; the grader checks the system's answer against it",
+    "evidence": "Where the answer's evidence is: \"file#page\", or \"file\" for anywhere in it. A run should find passages for all of them",
+    "key_figures": "Figures a correct answer must state, checked in code (commas and $ ignored)",
+    "category": "conflict | multi-document | calculation | conditional | negative",
+    "answerable": "false when the library doesn't contain the answer"
+  },
+  "items": [
+    {
+      "id": "m01",
+      "task": "How much does a SkyNode Pro cost, and how much is the Plus cloud plan per year?",
+      "reference": "Since the pricing update effective 1 September 2026, the SkyNode Pro costs $319 (the 2026 knowledge base lists the earlier $299) and the Plus plan costs $59 a year ($5.99 a month), up from $49.",
+      "evidence": [
+        "aurora_pricing_update_sep_2026.md"
+      ],
+      "key_figures": [
+        "319",
+        "59"
+      ],
+      "category": "conflict",
+      "answerable": true
+    },
+    {
+      "id": "m02",
+      "task": "A school wants 6 SkyNode stations: 4 at the main campus (has Wi-Fi) and 2 at a field site with no Wi-Fi. Students need wind direction and UV readings. Recommend the models and cloud plan, and estimate the first-year cost with the education discount.",
+      "reference": "4 SkyNode Pro at the campus (the Lite has no wind direction or UV sensor) and 2 SkyNode Max at the field site (only the Max has cellular backup). At current prices: 4 x $319 + 2 x $529 = $2,334. The Schools Program Guide gives 40% off hardware for orders of 3 or more stations, so hardware is $1,400.40. Plus now allows only 4 stations, so one Pro plan (up to 10 stations) is needed: $129 a year, $77.40 after the 40% discount. First-year total: $1,477.80.",
+      "evidence": [
+        "aurora_knowledge_base.pdf#2",
+        "aurora_pricing_update_sep_2026.md",
+        "aurora_for_schools_guide.txt"
+      ],
+      "key_figures": [
+        "1,477.80"
+      ],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "m03",
+      "task": "A vineyard with no mains power and no Wi-Fi wants soil moisture readings and a full year of data history. What equipment and plan do they need, and what will the first two years cost?",
+      "reference": "A SkyNode Max ($529): it is the only model with soil moisture sensors and the only one with cellular. A SolarKit ($79) powers the hub without mains power and fits the Pro and Max. The Plus plan gives a year of history at $59 a year, so $118 over two years. Cellular data is included for the first 12 months; the second year needs the Aurora Cellular plan at $30 a year (cheaper than $3 a month). Two-year total: $529 + $79 + $118 + $30 = $756.",
+      "evidence": [
+        "aurora_knowledge_base.pdf#2",
+        "aurora_pricing_update_sep_2026.md",
+        "skynode_installation_guide.pdf#2",
+        "skynode_installation_guide.pdf#3"
+      ],
+      "key_figures": [
+        "756"
+      ],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "m04",
+      "task": "Can I run a SkyNode Lite on the SolarKit at a site without mains power?",
+      "reference": "No. The SolarKit fits the SkyNode Pro and Max hubs only; the Lite hub takes power through a different connector and needs mains power. For a site without mains power, choose a Pro or Max with the SolarKit ($79).",
+      "evidence": [
+        "skynode_installation_guide.pdf#2"
+      ],
+      "key_figures": [],
+      "category": "conditional",
+      "answerable": true
+    },
+    {
+      "id": "m05",
+      "task": "Does the SkyNode Lite support 5 GHz Wi-Fi?",
+      "reference": "It depends on the hardware revision. Revision B Lite hubs (serial numbers starting LB-, shipping since January 2026) support 5 GHz Wi-Fi, added in a firmware update. Revision A hubs (serial numbers starting LA-) have a 2.4 GHz radio only, which matches the knowledge base's 2.4 GHz specification.",
+      "evidence": [
+        "aurora_knowledge_base.pdf#2",
+        "skynode_firmware_release_notes.md"
+      ],
+      "key_figures": [],
+      "category": "conflict",
+      "answerable": true
+    },
+    {
+      "id": "m06",
+      "task": "We're a Title I school and want 2 weather stations. What can we get free, and what discount applies if we buy them instead?",
+      "reference": "Through the Station Grant, Title I schools can get up to 2 free SkyNode Lite stations per school year; applications open on 1 February and are decided by 31 March. Buying 1 or 2 stations instead gets 15% off hardware (the 40% hardware discount needs 3 or more stations).",
+      "evidence": [
+        "aurora_for_schools_guide.txt"
+      ],
+      "key_figures": [],
+      "category": "conditional",
+      "answerable": true
+    },
+    {
+      "id": "m07",
+      "task": "Our school is ordering 4 SkyNode Pro stations. Do we get the hardware discount, and what will the stations cost?",
+      "reference": "Yes. Since 1 September 2026 the 40% hardware discount applies to orders of 3 or more stations (the knowledge base's earlier rule required 5). At the current $319 each, 4 stations are $1,276 at list, or $765.60 after the discount.",
+      "evidence": [
+        "aurora_for_schools_guide.txt",
+        "aurora_pricing_update_sep_2026.md"
+      ],
+      "key_figures": [
+        "765.60"
+      ],
+      "category": "conflict",
+      "answerable": true
+    },
+    {
+      "id": "m08",
+      "task": "After the first year, what does cellular data for a SkyNode Max cost, and which billing option is cheaper?",
+      "reference": "The first 12 months of cellular data (up to 1 GB a month) are included. After that the Aurora Cellular plan costs $3 a month or $30 a year, so annual billing is cheaper: $30 against $36 a year.",
+      "evidence": [
+        "skynode_installation_guide.pdf#3"
+      ],
+      "key_figures": [
+        "30"
+      ],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "m09",
+      "task": "What does the SolarKit cost in euros, and is it sold in the EU?",
+      "reference": "The library gives the SolarKit's price only in US dollars ($79) and doesn't say whether it is sold in the EU or what it costs in euros.",
+      "evidence": [],
+      "key_figures": [],
+      "category": "negative",
+      "answerable": false
+    },
+    {
+      "id": "m10",
+      "task": "When is the SkyNode Ultra launching, and what will it cost?",
+      "reference": "The library doesn't mention a SkyNode Ultra. It describes only the Lite, Pro and Max.",
+      "evidence": [],
+      "key_figures": [],
+      "category": "negative",
+      "answerable": false
+    }
+  ]
+}

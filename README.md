@@ -7,7 +7,7 @@ Markdown, and DocPilot retrieves the relevant passages and answers with sources 
 The LLM provider is switchable per request.
 
 **[Try the live demo](https://docpilot.arjunkanniah.dev)**: ask about a fictional
-company's knowledge base (read-only, cheap models, rate-limited). See [Deploying](#deploying)
+company's five-document library (read-only, cheap models, rate-limited). See [Deploying](#deploying)
 for how it runs.
 
 ![DocPilot answering a cited question in Ask mode, then working through a research task in Research mode](docs/demo.gif)
@@ -45,9 +45,9 @@ just dev-web          # terminal 2: web app on http://localhost:5173
 
 Run `just` to see every task, and `just check` to run what CI runs.
 
-To try it without your own files, upload [`demo/aurora_knowledge_base.pdf`](demo/), a fictional
-company knowledge base, and ask the questions in
-[`demo/sample_questions.md`](demo/sample_questions.md).
+To try it without your own files, upload the [demo library](demo/): five documents about a
+fictional company, in which newer documents supersede some of the knowledge base's figures.
+Then ask the questions in [`demo/sample_questions.md`](demo/sample_questions.md).
 
 ## How ingestion works
 
@@ -141,7 +141,7 @@ calls and about 21K input tokens).
 
 ## Evaluation
 
-[`demo/`](demo/) holds a fictional company knowledge base and 21 questions with reference
+[`demo/`](demo/) holds a fictional company's knowledge base and 21 questions with reference
 answers, including two the document can't answer. `just eval` runs them through the same
 prompt and streaming path as the app, and `claude-opus-5-5` grades each answer against its
 reference with a structured verdict. Retrieval and citations are scored in code.
@@ -170,9 +170,20 @@ cited every page the answer needs and states the key figures.
 | GPT-6 Luna | 6/6 | 2/2 | 100% | 1.2 / 4.6 | ~$0.002 |
 | Gemini 3.5 Flash-Lite | 5/6 | 2/2 | 100% | 1.0 / 2.6 | free tier |
 
-Flash-Lite's miss is a real one: it priced a per-account plan per station. These tasks also
-drove the agent's design during development; see
-[what the set found](demo/eval-results/agent/).
+Flash-Lite's miss is a real one: it priced a per-account plan per station.
+
+A second set runs over the whole five-document [demo library](demo/), where newer documents
+supersede the knowledge base's prices and rules. Two runs per model:
+
+| Model | Correct (run 1 / run 2) | Declined when it should | Found every piece of evidence |
+|---|---|---|---|
+| Claude Haiku 5.5 | 8/8, 8/8 | 2/2, 2/2 | 100% |
+| GPT-6 Luna | 6/8, 8/8 | 2/2, 2/2 | 100% |
+| Gemini 3.5 Flash-Lite | 8/8, 8/8 | 2/2, 2/2 | 100% |
+
+Conflicting versions were the main failure: one prompt rule for documents that disagree took
+the set from 56 to 58 of 60. These tasks also drove the agent's design; see
+[what the sets found](demo/eval-results/agent/).
 
 ## Deploying
 
@@ -229,7 +240,7 @@ Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVI
 ```
 backend/        FastAPI service (src/docpilot), Alembic migrations, tests
 frontend/       React + TypeScript web app
-demo/           fictional knowledge base, evaluation set and results
+demo/           fictional document library, evaluation sets and results
 infra/          Terraform for Google Cloud and Cloudflare (uses cloudrun-blueprint)
 Dockerfile      production image (API + web app + embedding model)
 .devcontainer/  reproducible dev environment
@@ -249,7 +260,8 @@ mise.toml       pinned toolchain
 - [x] Custom domain through a Cloudflare Worker, keeping answers streamed
 - [x] Agent mode: a LangGraph researcher, analyst and writer, with a visible trace
 - [x] Evaluation for Research mode: multi-step tasks, evidence and key-figure checks
-- [ ] A harder corpus: several documents, near-duplicate passages, conflicting versions
+- [x] A harder corpus: five documents in three formats, near-duplicate passages, conflicting
+  versions, with its own Research mode evaluation
 - [ ] Conversation memory: follow-up questions that build on earlier answers
 - [ ] Research mode evaluation in CI on a schedule, with a pass threshold
 

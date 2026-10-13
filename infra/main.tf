@@ -43,11 +43,11 @@ module "app" {
     DOCPILOT_PROXY_SECRET = module.domain.proxy_secret_id
   }
 
-  # Migrations and demo documents, run by each deploy before the new revision goes live.
+  # Migrations and the demo library, run by each deploy before the new revision goes live.
   jobs = {
     migrate = {
       command    = ["sh", "-c"]
-      args       = ["alembic upgrade head && python -m docpilot.seed demo/aurora_knowledge_base.pdf"]
+      args       = ["alembic upgrade head && python -m docpilot.seed demo/library/*"]
       memory     = "1Gi"
       secret_env = ["DOCPILOT_DATABASE_URL"]
     }
