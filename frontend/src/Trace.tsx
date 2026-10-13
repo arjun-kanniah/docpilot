@@ -55,7 +55,7 @@ export function Trace({ items, running }: { items: TraceItem[]; running: boolean
             case 'notes':
               return (
                 <li key={i}>
-                  <details className="trace-notes">
+                  <details className="trace-notes trace-detail">
                     <summary>Research notes</summary>
                     <p>{item.text}</p>
                   </details>
@@ -64,31 +64,38 @@ export function Trace({ items, running }: { items: TraceItem[]; running: boolean
             case 'review':
               return (
                 <li key={i} className="trace-review">
-                  {item.gaps.length === 0 ? (
-                    <span>Enough to write. {item.summary}</span>
-                  ) : (
-                    <>
-                      <span>
-                        {item.next === 'researcher'
-                          ? 'Needs more research:'
-                          : `${STOP_REASONS[item.stop_reason ?? 'round_limit']} Still missing:`}
-                      </span>
-                      <ul>
-                        {item.gaps.map((gap) => (
-                          <li key={gap}>{gap}</li>
-                        ))}
-                      </ul>
-                    </>
+                  <span>
+                    {item.gaps.length === 0
+                      ? 'Enough to write.'
+                      : item.next === 'researcher'
+                        ? 'Needs more research:'
+                        : `${STOP_REASONS[item.stop_reason ?? 'round_limit']} Still missing:`}
+                  </span>
+                  {item.gaps.length > 0 && (
+                    <ul>
+                      {item.gaps.map((gap) => (
+                        <li key={gap}>{gap}</li>
+                      ))}
+                    </ul>
                   )}
                   {item.corrections.length > 0 && (
-                    <>
-                      <span>Corrections for the writer:</span>
+                    <details className="trace-detail">
+                      <summary>
+                        {item.corrections.length} correction
+                        {item.corrections.length === 1 ? '' : 's'} for the writer
+                      </summary>
                       <ul>
                         {item.corrections.map((fix) => (
                           <li key={fix}>{fix}</li>
                         ))}
                       </ul>
-                    </>
+                    </details>
+                  )}
+                  {item.summary && (
+                    <details className="trace-detail">
+                      <summary>Analyst&apos;s notes</summary>
+                      <p>{item.summary}</p>
+                    </details>
                   )}
                 </li>
               )

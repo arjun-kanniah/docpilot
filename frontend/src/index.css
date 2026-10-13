@@ -706,12 +706,20 @@ h3 {
   padding-left: 18px;
 }
 
-.trace-notes summary {
+.trace-review > span {
+  display: block;
+}
+
+.trace-detail summary {
   color: var(--muted);
   cursor: pointer;
 }
 
-.trace-notes p {
+.trace-detail p {
   margin: 4px 0 0;
   white-space: pre-wrap;
+}
+
+.trace-detail ul {
+  margin: 4px 0 0;
 }
