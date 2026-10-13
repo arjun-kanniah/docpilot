@@ -10,9 +10,11 @@ The LLM provider is switchable per request.
 company's knowledge base (read-only, cheap models, rate-limited). See [Deploying](#deploying)
 for how it runs.
 
-![DocPilot answering a question with a cited comparison table](docs/demo.gif)
+![DocPilot answering a cited question in Ask mode, then working through a research task in Research mode](docs/demo.gif)
 
-<sub>Recorded on the live demo with Claude Haiku; the wait for the model's first token is shortened.</sub>
+<sub>Recorded on the live demo with Claude Haiku: a question in Ask mode, then a task in
+[Research mode](#agent-mode), ending on how the answer was researched. Waits for the model are
+shortened.</sub>
 
 ## Stack
 
