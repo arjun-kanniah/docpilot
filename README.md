@@ -136,8 +136,8 @@ flowchart LR
 The same graph runs on Claude, OpenAI or Gemini through LangChain's chat models, chosen per
 request from the same allowlist. LangGraph loads on the first agent run, so it doesn't slow
 cold starts. On the public demo a run counts as 5 questions against the hourly limit, since it
-makes several model calls (one test run on Claude Haiku took 2 rounds, 8 tool calls and about 40K
-input tokens).
+makes several model calls (on Claude Haiku the evaluation tasks averaged 1.4 rounds, 4.6 tool
+calls and about 21K input tokens).
 
 ## Evaluation
 
@@ -158,6 +158,21 @@ Retrieval finds the right page for every question (mean reciprocal rank 1.00), a
 that drops below 90%. The grader is checked first: it passes the reference answers and fails
 "I don't know". This small set is a regression check rather than a benchmark. See
 [the results and their caveats](demo/eval-results/).
+
+**Research mode** has its own set: 8 tasks that combine facts from several pages with a
+condition or arithmetic, plus 2 the document can't answer. `just eval-agent` runs them through
+the agent graph, grades the answers the same way, and checks in code that each run found and
+cited every page the answer needs and states the key figures.
+
+| Model (every agent step) | Correct | Declined when it should | Found every evidence page | Rounds / tool calls per task | Cost per task |
+|---|---|---|---|---|---|
+| Claude Haiku 5.5 | 6/6 | 2/2 | 100% | 1.4 / 4.6 | ~$0.004 |
+| GPT-6 Luna | 6/6 | 2/2 | 100% | 1.2 / 4.6 | ~$0.002 |
+| Gemini 3.5 Flash-Lite | 5/6 | 2/2 | 100% | 1.0 / 2.6 | free tier |
+
+Flash-Lite's miss is a real one: it priced a per-account plan per station. These tasks also
+drove the agent's design during development; see
+[what the set found](demo/eval-results/agent/).
 
 ## Deploying
 
@@ -232,7 +247,11 @@ mise.toml       pinned toolchain
 - [x] Evaluation: a question set with graded answers; retrieval checked in CI
 - [x] Deploy: Cloud Run + Neon via Terraform, deployed from CI, with spend guardrails
 - [x] Custom domain through a Cloudflare Worker, keeping answers streamed
-- [ ] Agent mode: multi-step research across documents
+- [x] Agent mode: a LangGraph researcher, analyst and writer, with a visible trace
+- [x] Evaluation for Research mode: multi-step tasks, evidence and key-figure checks
+- [ ] A harder corpus: several documents, near-duplicate passages, conflicting versions
+- [ ] Conversation memory: follow-up questions that build on earlier answers
+- [ ] Research mode evaluation in CI on a schedule, with a pass threshold
 
 ## License
 

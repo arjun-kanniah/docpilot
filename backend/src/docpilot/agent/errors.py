@@ -1,21 +1,24 @@
 def friendly_error(exc: Exception) -> str | None:
-    """A message safe to show users for a provider failure, or None if it isn't one."""
+    """A message safe to show users for a provider failure, or None if it isn't one.
+
+    LangChain wraps each provider's errors in shared types (ModelRateLimitError and so on),
+    so one check covers Claude, OpenAI and Gemini; the SDKs' own types are a fallback.
+    """
     import anthropic  # SDK imports are deferred until first use
     import openai
-    from google.genai import errors as genai_errors
+    from langchain_core import exceptions as lc
 
-    if isinstance(exc, anthropic.AuthenticationError | openai.AuthenticationError):
+    if isinstance(exc, lc.ModelAuthenticationError | anthropic.AuthenticationError):
         return "The provider rejected the API key."
-    if isinstance(exc, anthropic.RateLimitError | openai.RateLimitError):
-        return "The provider's rate limit was reached. Try again shortly."
-    if isinstance(exc, anthropic.APIStatusError | openai.APIStatusError):
+    if isinstance(exc, lc.ModelRateLimitError | anthropic.RateLimitError | openai.RateLimitError):
         return (
-            f"The provider returned an error ({exc.status_code}). Try again or pick another model."
+            "The provider's rate limit or quota was reached. "
+            "Try again shortly or pick another model."
         )
-    if isinstance(exc, anthropic.APIConnectionError | openai.APIConnectionError):
-        return "Could not reach the provider."
-    if isinstance(exc, genai_errors.APIError):
-        if exc.code == 429:
-            return "Gemini quota reached for this model. Try again later or pick another model."
-        return f"Gemini returned an error ({exc.code}). Try again or pick another model."
+    if isinstance(
+        exc, lc.ModelConnectionError | lc.ModelTimeoutError | anthropic.APIConnectionError
+    ):
+        return "Could not reach the provider. Try again shortly."
+    if isinstance(exc, lc.ModelError | anthropic.APIStatusError | openai.APIStatusError):
+        return "The provider returned an error. Try again or pick another model."
     return None

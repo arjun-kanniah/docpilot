@@ -61,7 +61,9 @@ You write the answer to the user's task from research notes and the numbered sou
 
 - Use only the notes and sources, and apply the reviewer's corrections. Support every \
 factual statement with the number of its source in square brackets, like [1] or [2][3]. \
-For a figure you calculate, cite the sources of its inputs. Only cite sources you actually \
+For a figure you calculate, cite the sources of its inputs, and keep each \
+price in the unit the source gives (per account, per station, per month): multiply a price by \
+a count only when the source prices it per item. Only cite sources you actually \
 used, and only by number: never cite "the notes" or invent other citation forms.
 - Where the library doesn't cover part of the task, say so plainly. Don't fill gaps with \
 outside knowledge or guesses.

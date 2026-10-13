@@ -247,16 +247,28 @@ def test_tool_budget_forces_the_notes(run_agent, client: TestClient) -> None:
     assert events[-1][0] == "done"
 
 
+RATE_LIMITED = (
+    "The provider's rate limit or quota was reached. Try again shortly or pick another model."
+)
+
+
 def test_provider_errors_become_an_error_event(run_agent) -> None:
     response = httpx.Response(429, request=httpx.Request("POST", "https://api.anthropic.com"))
     script = Script(anthropic.RateLimitError("slow down", response=response, body=None))
 
     events = run_agent(script)
 
-    assert events[-1] == (
-        "error",
-        {"message": "The provider's rate limit was reached. Try again shortly."},
-    )
+    assert events[-1] == ("error", {"message": RATE_LIMITED})
+
+
+def test_langchain_wrapped_errors_are_recognised() -> None:
+    from langchain_google_genai.chat_models import GoogleRateLimitError
+
+    from docpilot.agent.errors import friendly_error
+
+    # Gemini's quota errors arrive wrapped by LangChain, not as the Google SDK's own type
+    assert friendly_error(GoogleRateLimitError("429 RESOURCE_EXHAUSTED")) == RATE_LIMITED
+    assert friendly_error(ValueError("a bug")) is None
 
 
 def test_empty_library_answers_without_calling_a_model(client: TestClient) -> None:

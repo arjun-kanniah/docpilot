@@ -1,0 +1,89 @@
+{
+  "dataset": "Aurora Instruments research tasks",
+  "version": "1.0",
+  "description": "Tasks for DocPilot's Research mode: each needs several facts, often from different pages, combined with a condition or arithmetic. Two can't be answered from the document.",
+  "source_document": "aurora_knowledge_base.pdf",
+  "fields": {
+    "id": "Stable identifier",
+    "task": "What the user asks Research mode to do",
+    "reference": "A correct answer, written by a person; the grader checks the system's answer against it",
+    "evidence_pages": "Pages the answer needs evidence from; a run should find passages on all of them",
+    "key_figures": "Figures a correct answer must state, checked in code (commas and $ ignored)",
+    "category": "multi-page | conditional | calculation | negative",
+    "answerable": "false when the document doesn't contain the answer"
+  },
+  "items": [
+    {
+      "id": "r01",
+      "task": "What does the SkyNode warranty cover, how can I extend it, and what isn't covered?",
+      "reference": "The standard warranty is 2 years and covers manufacturing defects. Registering the station in the Aurora app within 30 days of purchase extends it to 3 years at no extra cost. It doesn't cover damage from misuse, unauthorized modification, or lightning strikes to the hub.",
+      "evidence_pages": [4],
+      "key_figures": [],
+      "category": "multi-page",
+      "answerable": true
+    },
+    {
+      "id": "r02",
+      "task": "A school wants 6 SkyNode stations: 4 at the main campus (has Wi-Fi) and 2 at a field site with no Wi-Fi. Students need wind direction and UV readings. Recommend the models and cloud plan, and estimate the first-year cost with the education discount.",
+      "reference": "Use 4 SkyNode Pro stations at the campus (the Lite has no wind direction or UV sensor) and 2 SkyNode Max at the field site (only the Max has cellular backup and works without Wi-Fi). One Pro cloud plan covers up to 10 stations; Plus allows only 3. Verified schools get 40% off the Plus and Pro plans and off hardware orders of five or more stations. Hardware: 4 x $299 + 2 x $499 = $2,194, or $1,316.40 after 40% off. Pro plan: $129 a year, or $77.40 after 40% off. First-year total: $1,393.80.",
+      "evidence_pages": [2, 3],
+      "key_figures": ["1,393.80"],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "r03",
+      "task": "A farm with no Wi-Fi wants soil moisture and leaf wetness readings, a full year of data history and custom alerts. Which model and cloud plan fit, and what is the first-year cost paying annually?",
+      "reference": "The SkyNode Max: it is the only model with soil moisture and leaf wetness sensors, and the only one with cellular backup for a site without Wi-Fi ($499). The Plus plan gives 1 year of history and custom alerts for $49 a year. First-year cost: $499 + $49 = $548.",
+      "evidence_pages": [2, 3],
+      "key_figures": ["548"],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "r04",
+      "task": "My SkyNode stopped working 2.5 years after I bought it. I registered it in the app the week I bought it and I'm on the Pro cloud plan. Is the repair covered, how long will it take, what do I get meanwhile, and can I phone support?",
+      "reference": "Registering within 30 days extended the warranty to 3 years, so at 2.5 years a manufacturing defect is still covered (unless the damage came from misuse, modification or lightning to the hub); the $59 plus parts out-of-warranty fee shouldn't apply. Repairs typically take 10 business days from when Aurora receives the device. Pro-plan subscribers get a loaner unit during the repair, and phone support is reserved for Pro-plan subscribers (Monday to Friday, 8 a.m. to 6 p.m. Mountain Time).",
+      "evidence_pages": [4],
+      "key_figures": [],
+      "category": "conditional",
+      "answerable": true
+    },
+    {
+      "id": "r05",
+      "task": "For 3 stations on one account, how much does the Plus plan cost over two years paying monthly versus annually, and how much does annual billing save?",
+      "reference": "One Plus account covers up to 3 stations. Monthly: $4.99 x 24 = $119.76. Annually: $49 x 2 = $98. Annual billing saves $21.76 over two years.",
+      "evidence_pages": [3],
+      "key_figures": ["119.76", "98", "21.76"],
+      "category": "calculation",
+      "answerable": true
+    },
+    {
+      "id": "r06",
+      "task": "If my internet goes down for two weeks, which SkyNode models keep all of my readings, and can I still see them during the outage?",
+      "reference": "The hub stores readings locally: 7 days on the Lite, 30 days on the Pro and 90 days on the Max, so the Pro and Max keep two weeks of readings and the Lite does not. During the outage the app can read directly from the hub over the local network.",
+      "evidence_pages": [5],
+      "key_figures": [],
+      "category": "multi-page",
+      "answerable": true
+    },
+    {
+      "id": "r07",
+      "task": "Who is Aurora Instruments' current CEO, and what was the company's revenue in 2025?",
+      "reference": "The document doesn't name a current CEO or give any revenue figures. It names the founders, Dr. Elena Varga and Marcus Reed, without saying either is CEO.",
+      "evidence_pages": [],
+      "key_figures": [],
+      "category": "negative",
+      "answerable": false
+    },
+    {
+      "id": "r08",
+      "task": "How does the SkyNode Max compare on price and sensors with weather stations from Davis Instruments and Netatmo?",
+      "reference": "The document has no information about Davis Instruments, Netatmo or any other competitor, so no comparison can be made from it. It only describes Aurora's own SkyNode models (the Max is $499 with 14 sensors).",
+      "evidence_pages": [],
+      "key_figures": [],
+      "category": "negative",
+      "answerable": false
+    }
+  ]
+}

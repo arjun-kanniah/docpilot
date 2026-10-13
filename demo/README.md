@@ -9,7 +9,8 @@ safe to publish and reuse.
 | `aurora_knowledge_base.pdf` | 5-page knowledge base for **Aurora Instruments**, a fictional maker of home weather stations: company facts, product specs, cloud plans, warranty and an FAQ. |
 | `eval_set.json` | 21 questions with reference answers, the supporting passage, source page, category and difficulty. The source of truth for evaluation. |
 | `eval_set.csv` | The same questions as a flat table, for browsing (GitHub renders it). Generated from the JSON. |
-| `eval-results/` | Baseline results for three models, with per-question grades. |
+| `agent_eval_set.json` | 8 research tasks for Research mode (agent mode): several facts per task, often from different pages, with conditions and arithmetic; 2 can't be answered. |
+| `eval-results/` | Baseline results with per-question grades; `eval-results/agent/` has Research mode's. |
 | `sample_questions.md` | A short list of questions that show retrieval, reasoning across pages, and declining to answer. |
 
 ## Try it
@@ -49,7 +50,8 @@ What each part measures:
 - **Answer correctness:** does the answer agree with `ground_truth`?
 - **Abstention:** for `answerable: false`, does the answer say the information isn't there?
 
-Run it with `just eval-retrieval` (free) or `just eval` (answers graded by Claude). Baseline
+Run it with `just eval-retrieval` (free) or `just eval` (answers graded by Claude), and the
+research tasks with `just eval-agent`. Baseline
 results are in [`eval-results/`](eval-results/).
 
 ## Limits worth knowing

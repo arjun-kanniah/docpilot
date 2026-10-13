@@ -52,6 +52,10 @@ eval-retrieval: db
 eval *args: db
     cd backend && uv run python -m docpilot.evaluation answers {{args}}
 
+# Run and grade the Research mode tasks (paid API calls). e.g. just eval-agent --model gpt-6-luna
+eval-agent *args: db
+    cd backend && uv run python -m docpilot.evaluation agent {{args}}
+
 # Everything CI runs
 check: lint test eval-retrieval
 
