@@ -21,18 +21,6 @@ variable "domain" {
   default     = "docpilot.arjunkanniah.dev"
 }
 
-variable "brand_zone" {
-  description = "Cloudflare zone for the personal site."
-  type        = string
-  default     = "arjunkanniah.com"
-}
-
-variable "home_url" {
-  description = "Where the personal site redirects until it has pages of its own."
-  type        = string
-  default     = "https://github.com/arjun-kanniah"
-}
-
 variable "billing_account" {
   description = "Billing account ID (XXXXXX-XXXXXX-XXXXXX) for the budget alert."
   type        = string
@@ -66,15 +54,4 @@ variable "questions_per_day" {
   description = "Questions per day per running instance, across all visitors."
   type        = number
   default     = 500
-}
-
-variable "email_aliases" {
-  description = "Addresses at brand_zone that forward to email_forward_to."
-  type        = list(string)
-  default     = ["arjun", "support"]
-}
-
-variable "email_forward_to" {
-  description = "Inbox that receives the aliases. Kept in terraform.tfvars, out of the public repo."
-  type        = string
 }
