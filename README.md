@@ -30,7 +30,19 @@ on how the answer was researched. Waits for the model are shortened.</sub>
 ## Quick start
 
 **Option A: dev container (nothing to install but Docker + VS Code).** Open the folder in
-VS Code and choose *Reopen in Container*. Tools and dependencies install automatically.
+VS Code and choose *Reopen in Container*. The first build installs the tools and dependencies
+(a few minutes). Then, in VS Code's terminal, which runs inside the container:
+
+```bash
+cp .env.example .env  # optional: add API keys
+just migrate          # start Postgres + pgvector and create the schema
+just dev-api          # terminal 1: API
+just dev-web          # terminal 2: web app, open http://localhost:5173
+```
+
+VS Code forwards the ports to your browser. Postgres runs in Docker beside the container, not
+inside it, so its data survives a rebuild; the container reaches it through
+`host.docker.internal`, which overrides the database URL in `.env`.
 
 **Option B: local.**
 
