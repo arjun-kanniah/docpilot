@@ -183,7 +183,7 @@ that drops below 90%. The grader is checked first: it passes the reference answe
 "I don't know". This small set is a regression check rather than a benchmark. See
 [the results and their caveats](demo/eval-results/).
 
-**Research mode** has its own set: 8 tasks that combine facts from several pages with a
+**Research mode** has its own set: 6 tasks that combine facts from several pages with a
 condition or arithmetic, plus 2 the document can't answer. `just eval-agent` runs them through
 the agent graph, grades the answers the same way, and checks in code that each run found and
 cited every page the answer needs and states the key figures.
@@ -233,7 +233,7 @@ flowchart LR
   [cloudrun-blueprint](https://github.com/arjun-kanniah/cloudrun-blueprint), my reusable
   modules for Cloud Run: the service, the migration job, least-privilege service accounts,
   GitHub's deploy access (limited to this repo's `main` branch), a budget alert and the Worker.
-  DocPilot adds its own settings and the rest of the Cloudflare side: redirects and email. Provider keys, the database URL and the
+  DocPilot adds its own settings. Provider keys, the database URL and the
   Cloudflare token are stored with `just secret`, so they never reach code or Terraform state.
 - **Why a Worker for the domain:** Cloud Run's built-in domain mapping isn't offered in
   us-east5, a Google load balancer costs about USD 18 a month, and Firebase Hosting buffers
