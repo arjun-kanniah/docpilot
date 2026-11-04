@@ -48,6 +48,10 @@ test: db
 eval-retrieval: db
     cd backend && uv run python -m docpilot.evaluation retrieval --min-hit-rate 0.9
 
+# Benchmark retrieval on a public BEIR dataset (free, local). e.g. just bench --dataset nfcorpus --experiment E0
+bench *args: db
+    cd backend && uv run python -m docpilot.bench {{args}}
+
 # Answer and grade the demo eval set (paid API calls). e.g. just eval --model claude-haiku-5-5
 eval *args: db
     cd backend && uv run python -m docpilot.evaluation answers {{args}}
