@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
@@ -7,11 +9,20 @@ from fastapi.staticfiles import StaticFiles
 from docpilot import __version__
 from docpilot.api import router
 from docpilot.config import Settings, get_settings
+from docpilot.embeddings import get_embedder
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    if get_settings().preload_embedder:
+        # One query also starts the ONNX session, which is the slow part of the first call
+        get_embedder().embed_query("warm up")
+    yield
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="DocPilot API", version=__version__)
+    app = FastAPI(title="DocPilot API", version=__version__, lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

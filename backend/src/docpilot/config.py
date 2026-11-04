@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Local embedding model (downloaded once, then cached)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     model_cache_dir: Path = Path.home() / ".cache" / "docpilot" / "models"
+    # Load the model when the server starts rather than on the first question (about 9 s on
+    # Cloud Run), so the cold start is paid before the instance takes traffic
+    preload_embedder: bool = False
 
     # Answering: defaults for POST /api/ask; a request can pick another allowlisted model
     llm_provider: str = "anthropic"

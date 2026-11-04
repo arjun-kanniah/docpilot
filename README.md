@@ -259,6 +259,45 @@ just infra apply                     # everything else (the domains must already
 Then set the repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER` and
 `GCP_DEPLOY_SA` from `just infra output`, and the next push to `main` deploys.
 
+**Cold starts:** the demo keeps one instance warm (`min_instances`, about USD 13 a month idle)
+and loads the embedding model at startup, not on the first question. Scaled to zero, a
+visitor's first question waited about 12 seconds (3 s to start the server, 9 s to load the
+model); warm, retrieval takes under half a second. Set `min_instances = 0` to trade that wait
+for a zero idle cost.
+
+## What I'd change for production
+
+DocPilot is built as a public demo: one shared library, no accounts, and cost guardrails sized
+for strangers on the internet. For a team's own documents, these are the changes I'd make,
+roughly in order:
+
+- **Accounts and access control.** Sign-in through the organization's identity provider (OIDC),
+  an owner or group on every document, and the permission filter applied inside the retrieval
+  query with Postgres row-level security, so a passage a user can't read never reaches the
+  prompt. The per-chat `document_ids` filter is already the hook for this. Chats would move
+  from the browser to the server.
+- **Ingestion in the background.** Uploads are parsed and embedded inside the request today,
+  which is fine at a 20 MB limit. At volume: store the file in object storage, queue a job
+  (Pub/Sub or Cloud Tasks into a Cloud Run job), report status, and retry failures. Text is
+  extracted with pypdf, which reads only a PDF's text layer, so scanned pages need OCR and
+  tables need layout-aware parsing.
+- **Retrieval that holds up at scale.** Search is vector-only, which works on five documents
+  but weakens on thousands of near-duplicates, part numbers and exact phrases. Next steps:
+  hybrid search (Postgres full-text plus vectors), a reranker, and metadata filters such as
+  date and document type, each one measured on an evaluation set built from the client's own
+  documents before and after.
+- **Shared rate limits and budgets.** Limits live in memory on each instance, so with two
+  instances they're approximate, and the real backstop is each provider's spend limit.
+  Production would keep counters in Redis or Postgres, with per-user quotas and a token budget
+  per team.
+- **Observability.** Each answer logs its model and token counts, and nothing more. I'd add
+  OpenTelemetry traces across the rewrite, retrieval and model call, plus LLM tracing (Langfuse
+  or LangSmith) to see the prompt, the retrieved passages and the cost of any answer someone
+  reports as wrong, and alerts on error rate and latency.
+- **Evaluation as a release gate.** Retrieval is checked in CI; the graded answer sets run by
+  hand. They'd run on a schedule and before every prompt or model change, with a pass
+  threshold, and grow from real questions users flag.
+
 ## Project layout
 
 ```

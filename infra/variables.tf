@@ -55,3 +55,9 @@ variable "questions_per_day" {
   type        = number
   default     = 500
 }
+
+variable "min_instances" {
+  description = "Instances kept warm so visitors skip the cold start (~12 s to the first answer). 0 scales to zero and costs nothing when idle; 1 costs roughly USD 13 a month idle."
+  type        = number
+  default     = 1
+}

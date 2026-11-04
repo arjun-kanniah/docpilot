@@ -22,11 +22,13 @@ module "app" {
 
   memory        = "1Gi"
   concurrency   = 20
+  min_instances = var.min_instances
   max_instances = 2 # hard ceiling on cost and on LLM spend
   health_path   = "/api/health"
 
   env = {
     DOCPILOT_DEMO_MODE               = "true"
+    DOCPILOT_PRELOAD_EMBEDDER        = "true"
     DOCPILOT_LLM_PROVIDER            = "anthropic"
     DOCPILOT_ALLOWED_MODELS          = jsonencode(var.demo_models)
     DOCPILOT_ANSWER_MAX_TOKENS       = "4000"
