@@ -45,6 +45,7 @@ from docpilot.evaluation.runner import (
     retrieve,
 )
 from docpilot.llm.providers import LLMConfigError, get_llm_registry
+from docpilot.retrieval import get_retrieval
 
 RUNS_DIR = BACKEND_DIR.parent / "eval-runs"
 
@@ -111,12 +112,13 @@ def main(argv: list[str] | None = None) -> int:
     embedder = get_embedder()
     with Session(engine, expire_on_commit=False) as session:
         chunks = index_corpus(session, embedder, settings)
-        cases = retrieve(session, embedder, items, k, settings.retrieval)
+        cases = retrieve(session, embedder, items, k, get_retrieval())
     engine.dispose()
     setup = (
         f"{len(items)} questions over {chunks} chunks; embeddings {settings.embedding_model}; "
         f"chunks {settings.chunk_max_chars} chars with {settings.chunk_overlap_chars} overlap; "
-        f"top {k}; {settings.retrieval} retrieval."
+        f"top {k}; {settings.retrieval} retrieval"
+        + (f", reranked by {settings.reranker}." if settings.reranker else ".")
     )
     print(setup)
 

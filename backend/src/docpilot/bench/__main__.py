@@ -34,8 +34,18 @@ from docpilot.bench.run import (
 from docpilot.config import get_settings
 from docpilot.dbsetup import BACKEND_DIR, prepare_database
 from docpilot.embeddings import FastEmbedEmbedder
+from docpilot.reranking import FastEmbedReranker
 
 RUNS_DIR = BACKEND_DIR.parent / "eval-runs" / "bench"
+
+# Short names for the rerankers in E3 (any fastembed cross-encoder name also works)
+RERANKERS = {
+    "minilm-l6": "Xenova/ms-marco-MiniLM-L-6-v2",
+    "minilm-l12": "Xenova/ms-marco-MiniLM-L-12-v2",
+    "jina-tiny": "jinaai/jina-reranker-v1-tiny-en",
+    "bge-base": "BAAI/bge-reranker-base",
+    "bge-m3-int8": "BAAI/bge-reranker-v2-m3-int8",
+}
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -47,6 +57,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--chunk-k", type=int, default=150, help="passages retrieved per query")
     parser.add_argument("--ef-search", type=int, default=200, help="pgvector hnsw.ef_search")
     parser.add_argument("--threads", type=int, default=1, help="CPU cores for the query phase")
+    parser.add_argument("--reranker", help=f"rerank with a cross-encoder: {', '.join(RERANKERS)}")
+    parser.add_argument("--rerank-k", type=int, default=50, help="chunks the reranker reads")
     parser.add_argument("--reindex", action="store_true", help="rebuild the index first")
     return parser.parse_args(argv)
 
@@ -117,6 +129,13 @@ def main(argv: list[str] | None = None) -> int:
         embedder = FastEmbedEmbedder(
             settings.embedding_model, str(settings.model_cache_dir), threads=args.threads
         )
+        reranker = None
+        if args.reranker:
+            reranker = FastEmbedReranker(
+                RERANKERS.get(args.reranker, args.reranker),
+                str(settings.model_cache_dir),
+                threads=args.threads,
+            )
         print(f"Running {len(queries)} queries on {len(cores) or 'all'} core(s)...", flush=True)
         results = run_queries(
             session,
@@ -126,11 +145,16 @@ def main(argv: list[str] | None = None) -> int:
             pipeline=args.pipeline,
             chunk_k=args.chunk_k,
             ef_search=args.ef_search,
+            reranker=reranker,
+            rerank_k=args.rerank_k,
         )
     summary = summarize(results, dataset.qrels)
 
+    name = args.pipeline
+    if args.reranker:
+        name += f"+{args.reranker}@{args.rerank_k}"
     print(
-        f"{args.experiment} {args.pipeline} on {args.dataset}: "
+        f"{args.experiment} {name} on {args.dataset}: "
         f"nDCG@10 {summary.ndcg_at_10:.3f} | R@20 {summary.recall_at_20:.3f} | "
         f"R@50 {summary.recall_at_50:.3f} | R@100 {summary.recall_at_100:.3f} | "
         f"MRR@10 {summary.mrr_at_10:.3f} | p50 {summary.p50_ms:.0f} ms | "
@@ -139,10 +163,10 @@ def main(argv: list[str] | None = None) -> int:
 
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = RUNS_DIR / f"{stamp}-{args.experiment}-{args.pipeline}-{args.dataset}.json"
+    out = RUNS_DIR / f"{stamp}-{args.experiment}-{name.replace('@', '-')}-{args.dataset}.json"
     record = {
         "experiment": args.experiment,
-        "pipeline": args.pipeline,
+        "pipeline": name,
         "dataset": args.dataset,
         "run_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "docpilot_version": __version__,
@@ -151,6 +175,8 @@ def main(argv: list[str] | None = None) -> int:
             "chunk_k": args.chunk_k,
             "ef_search": args.ef_search,
             "query_cores": len(cores) or None,
+            "reranker": RERANKERS.get(args.reranker, args.reranker) if args.reranker else None,
+            "rerank_k": args.rerank_k if args.reranker else None,
         },
         "index": {"documents": len(ids), "chunks": chunk_count, "chunks_table_mb": float(index_mb)},
         "machine": {"cpu": cpu_name(), "python": sys.version.split()[0]},

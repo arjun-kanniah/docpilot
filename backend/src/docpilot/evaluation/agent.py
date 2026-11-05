@@ -23,6 +23,7 @@ from docpilot.evaluation.grader import Grade
 from docpilot.evaluation.report import cost_usd
 from docpilot.evaluation.runner import DEMO_DIR, LIBRARY_DIR, Grader
 from docpilot.llm.base import Usage
+from docpilot.retrieval import get_retrieval
 
 # Each set names the documents it runs over: one PDF, or the whole demo library ("*").
 AGENT_EVAL_SETS = {
@@ -369,6 +370,7 @@ def model_run(
     provider: str, model: str, settings: Settings, engine: Engine, embedder: Embedder
 ) -> RunFn:
     """Run a task through the same graph, tools and limits as POST /api/agent."""
+    retrieval = get_retrieval()
     from sqlalchemy.orm import Session
 
     from docpilot.agent.graph import Limits, build_graph, run_agent
@@ -386,9 +388,7 @@ def model_run(
             graph = build_graph(
                 build_model(provider, model, limits.step_max_tokens),
                 build_model(provider, model, settings.answer_max_tokens),
-                make_tools(
-                    session, embedder, book, settings.agent_search_k, method=settings.retrieval
-                ),
+                make_tools(session, embedder, book, settings.agent_search_k, retrieval=retrieval),
                 book,
                 limits,
             )

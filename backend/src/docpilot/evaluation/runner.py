@@ -18,7 +18,7 @@ from docpilot.evaluation.grader import Grade
 from docpilot.ingest import ingest_document
 from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice
-from docpilot.retrieval import Method, SearchHit, search_chunks
+from docpilot.retrieval import Retrieval, SearchHit
 
 DEMO_DIR = BACKEND_DIR.parent / "demo"
 EVAL_SET = DEMO_DIR / "eval_set.json"
@@ -110,11 +110,10 @@ def retrieve(
     embedder: Embedder,
     items: Sequence[EvalItem],
     k: int,
-    method: Method = "vector",
+    retrieval: Retrieval = Retrieval(),  # noqa: B008 - immutable default
 ) -> list[CaseResult]:
     return [
-        CaseResult(item, search_chunks(session, embedder, item.question, k, method=method))
-        for item in items
+        CaseResult(item, retrieval.search(session, embedder, item.question, k)) for item in items
     ]
 
 

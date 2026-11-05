@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from docpilot.embeddings import Embedder
 from docpilot.models import Chunk, Document
-from docpilot.retrieval import Method, SearchHit, search_chunks
+from docpilot.retrieval import Retrieval, SearchHit
 
 
 @dataclass
@@ -36,7 +36,7 @@ def make_tools(
     book: SourceBook,
     k: int,
     document_ids: Collection[uuid.UUID] | None = None,
-    method: Method = "vector",
+    retrieval: Retrieval = Retrieval(),  # noqa: B008 - immutable default
 ) -> list[BaseTool]:
     """Tools over the library, or only the given documents when the chat is scoped to some."""
 
@@ -69,7 +69,7 @@ def make_tools(
             query: A short phrase about one topic, like "education discount". Long queries
                 listing several topics return general passages and miss specific ones.
         """
-        hits = search_chunks(session, embedder, query, k, document_ids, method=method)
+        hits = retrieval.search(session, embedder, query, k, document_ids)
         if not hits:
             return "No passages found."
         return "\n\n".join(format_source(book.number(hit), hit) for hit in hits)

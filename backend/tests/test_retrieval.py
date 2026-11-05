@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 from types import SimpleNamespace
 
 import pytest
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from docpilot.config import Settings
 from docpilot.ingest import ingest_document
-from docpilot.retrieval import RRF_K, fuse, search_chunks
+from docpilot.retrieval import RRF_K, Retrieval, SearchHit, fuse, rerank, search_chunks
 
 SETTINGS = Settings(_env_file=None)
 LIBRARY = {
@@ -88,3 +89,43 @@ def test_fuse_rewards_agreement_and_breaks_ties_by_the_first_list() -> None:
     assert fused == ["c", "b", "a", "d"]
     assert [r[0].id for r in fuse([[row("x")], [row("y")]])] == ["x", "y"]
     assert RRF_K == 60
+
+
+class PreferReranker:
+    """Scores passages containing `word` highest, and records what it was asked to read."""
+
+    def __init__(self, word: str) -> None:
+        self.word = word
+        self.read: list[int] = []
+
+    def scores(self, query: str, texts: Sequence[str]) -> list[float]:
+        self.read.append(len(texts))
+        return [1.0 if self.word in t.lower() else 0.0 for t in texts]
+
+
+def test_reranker_reorders_the_candidates_and_reads_only_that_many(
+    db_session: Session, library: dict[str, uuid.UUID]
+) -> None:
+    query = "refunds within 30 days"
+    plain = Retrieval().search(db_session, FakeEmbedder(), query, 4)
+    assert names(plain)[0] == "refunds.txt"
+
+    assert names(plain)[0] != "warranty.txt"
+
+    reranker = PreferReranker("warranty")
+    retrieval = Retrieval(reranker=reranker, rerank_candidates=4)  # the whole library
+    reranked = retrieval.search(db_session, FakeEmbedder(), query, 2)
+    assert reranker.read == [4]  # max(k, candidates) passages, in one call
+    assert names(reranked)[0] == "warranty.txt"
+    assert len(reranked) == 2
+    # the score shown is still similarity to the question, not the reranker's score
+    assert reranked[0].score == next(h.score for h in plain if h.filename == "warranty.txt")
+
+
+def test_rerank_keeps_the_rest_in_order_after_the_top() -> None:
+    hits = [
+        SearchHit(uuid.uuid4(), uuid.uuid4(), name, None, text, 0.5)
+        for name, text in [("a", "plain"), ("b", "has warranty"), ("c", "warranty too")]
+    ]
+    out = rerank(PreferReranker("warranty"), "q", hits, top=2)
+    assert [h.filename for h in out] == ["b", "a", "c"]  # c is past the top 2: untouched

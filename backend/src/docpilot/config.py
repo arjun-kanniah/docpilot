@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Retrieval: "vector" (embeddings only) or "hybrid" (embeddings and keyword search, merged
     # with Reciprocal Rank Fusion); see docs/retrieval-experiments.md
     retrieval: Literal["vector", "hybrid"] = "vector"
+    # Optional cross-encoder that reorders the top candidates, e.g. Xenova/ms-marco-MiniLM-L-6-v2;
+    # unset means no reranking. It reads `rerank_candidates` passages per search.
+    reranker: str | None = None
+    rerank_candidates: int = 20
 
     # Answering: defaults for POST /api/ask; a request can pick another allowlisted model
     llm_provider: str = "anthropic"

@@ -10,6 +10,7 @@ from docpilot import __version__
 from docpilot.api import router
 from docpilot.config import Settings, get_settings
 from docpilot.embeddings import get_embedder
+from docpilot.reranking import get_reranker
 
 
 @asynccontextmanager
@@ -17,6 +18,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if get_settings().preload_embedder:
         # One query also starts the ONNX session, which is the slow part of the first call
         get_embedder().embed_query("warm up")
+        if reranker := get_reranker():
+            reranker.scores("warm up", ["warm up"])
     yield
 
 

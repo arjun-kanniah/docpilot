@@ -1,6 +1,6 @@
 """Finding the passages for a question: by meaning (embeddings), by words (Postgres full-text
-search), or both merged with Reciprocal Rank Fusion. docs/retrieval-experiments.md has the
-measurements behind each choice."""
+search), or both merged with Reciprocal Rank Fusion; then, optionally, reordered by a
+reranker. docs/retrieval-experiments.md has the measurements behind each choice."""
 
 import uuid
 from collections.abc import Collection, Sequence
@@ -11,8 +11,10 @@ from sqlalchemy import Select, func, literal_column, select
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.orm import Session
 
+from docpilot.config import get_settings
 from docpilot.embeddings import Embedder
 from docpilot.models import Chunk, Document
+from docpilot.reranking import Reranker, get_reranker
 
 Method = Literal["vector", "keyword", "hybrid"]
 METHODS: tuple[Method, ...] = ("vector", "keyword", "hybrid")
@@ -61,6 +63,42 @@ def search_chunks(
     by_meaning = _vector_rows(session, vector, depth, document_ids)
     by_words = _keyword_rows(session, query, vector, depth, document_ids)
     return _hits(fuse([by_meaning, by_words])[:k])
+
+
+def rerank(reranker: Reranker, query: str, hits: Sequence[SearchHit], top: int) -> list[SearchHit]:
+    """The first `top` hits reordered by the reranker's scores, then the rest unchanged."""
+    head, tail = list(hits[:top]), list(hits[top:])
+    scores = reranker.scores(query, [hit.text for hit in head])
+    order = sorted(range(len(head)), key=lambda i: -scores[i])  # stable: ties keep order
+    return [head[i] for i in order] + tail
+
+
+@dataclass(frozen=True)
+class Retrieval:
+    """How the app finds passages: a method, and optionally a reranker over the top candidates."""
+
+    method: Method = "vector"
+    reranker: Reranker | None = None
+    rerank_candidates: int = 20  # passages the reranker reads; each costs a model pass
+
+    def search(
+        self,
+        session: Session,
+        embedder: Embedder,
+        query: str,
+        k: int,
+        document_ids: Collection[uuid.UUID] | None = None,
+    ) -> list[SearchHit]:
+        if self.reranker is None:
+            return search_chunks(session, embedder, query, k, document_ids, method=self.method)
+        depth = max(k, self.rerank_candidates)
+        pool = search_chunks(session, embedder, query, depth, document_ids, method=self.method)
+        return rerank(self.reranker, query, pool, depth)[:k]
+
+
+def get_retrieval() -> Retrieval:
+    settings = get_settings()
+    return Retrieval(settings.retrieval, get_reranker(), settings.rerank_candidates)
 
 
 def fuse(ranked_lists: Sequence[Sequence[Any]]) -> list[Any]:

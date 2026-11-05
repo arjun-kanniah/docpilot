@@ -21,7 +21,7 @@ from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice, LLMConfigError, LLMRegistry, get_llm_registry
 from docpilot.models import Chunk, Document
 from docpilot.ratelimit import RateLimiter, get_rate_limiter, visitor_id
-from docpilot.retrieval import SearchHit, search_chunks
+from docpilot.retrieval import Retrieval, SearchHit, get_retrieval
 from docpilot.schemas import (
     AgentIn,
     AskIn,
@@ -41,6 +41,7 @@ router = APIRouter(prefix="/api")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
+RetrievalDep = Annotated[Retrieval, Depends(get_retrieval)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 RegistryDep = Annotated[LLMRegistry, Depends(get_llm_registry)]
 LimiterDep = Annotated[RateLimiter, Depends(get_rate_limiter)]
@@ -127,9 +128,9 @@ def delete_document(document_id: uuid.UUID, session: SessionDep) -> None:
 
 @router.post("/search", response_model=list[SearchHitOut])
 def search(
-    body: SearchIn, session: SessionDep, embedder: EmbedderDep, settings: SettingsDep
+    body: SearchIn, session: SessionDep, embedder: EmbedderDep, retrieval: RetrievalDep
 ) -> list[SearchHitOut]:
-    hits = search_chunks(session, embedder, body.query, body.k, method=settings.retrieval)
+    hits = retrieval.search(session, embedder, body.query, body.k)
     return [SearchHitOut(**asdict(hit)) for hit in hits]
 
 
@@ -173,6 +174,7 @@ def prepare_ask(
     request: Request,
     session: SessionDep,
     embedder: EmbedderDep,
+    retrieval: RetrievalDep,
     settings: SettingsDep,
     registry: RegistryDep,
     limiter: LimiterDep,
@@ -189,9 +191,7 @@ def prepare_ask(
         k = min(k, settings.answer_top_k)  # bigger prompts cost more
     history = recent(body.history)
     question, rewrite_usage = make_standalone(choice, history, body.question)
-    hits = search_chunks(
-        session, embedder, question, k, body.document_ids, method=settings.retrieval
-    )
+    hits = retrieval.search(session, embedder, question, k, body.document_ids)
     return AskPlan(question, question != body.question, hits, choice, history, rewrite_usage)
 
 
@@ -282,6 +282,7 @@ def agent(
     plan: Annotated[AgentPlan, Depends(prepare_agent)],
     session: SessionDep,
     embedder: EmbedderDep,
+    retrieval: RetrievalDep,
     settings: SettingsDep,
     build_model: ModelFactoryDep,
 ) -> Iterator[ServerSentEvent]:
@@ -323,7 +324,7 @@ def agent(
             book,
             settings.agent_search_k,
             plan.document_ids,
-            settings.retrieval,
+            retrieval,
         ),
         book,
         limits,
