@@ -386,7 +386,9 @@ def model_run(
             graph = build_graph(
                 build_model(provider, model, limits.step_max_tokens),
                 build_model(provider, model, settings.answer_max_tokens),
-                make_tools(session, embedder, book, settings.agent_search_k),
+                make_tools(
+                    session, embedder, book, settings.agent_search_k, method=settings.retrieval
+                ),
                 book,
                 limits,
             )

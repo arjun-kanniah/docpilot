@@ -52,6 +52,10 @@ eval-retrieval: db
 bench *args: db
     cd backend && uv run python -m docpilot.bench {{args}}
 
+# Paired significance test between benchmark runs. e.g. just bench-compare BASELINE.json CANDIDATE.json
+bench-compare *args:
+    uv run --project backend python -m docpilot.bench.compare {{args}}
+
 # Answer and grade the demo eval set (paid API calls). e.g. just eval --model claude-haiku-5-5
 eval *args: db
     cd backend && uv run python -m docpilot.evaluation answers {{args}}

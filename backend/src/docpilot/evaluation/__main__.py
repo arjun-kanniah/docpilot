@@ -111,12 +111,12 @@ def main(argv: list[str] | None = None) -> int:
     embedder = get_embedder()
     with Session(engine, expire_on_commit=False) as session:
         chunks = index_corpus(session, embedder, settings)
-        cases = retrieve(session, embedder, items, k)
+        cases = retrieve(session, embedder, items, k, settings.retrieval)
     engine.dispose()
     setup = (
         f"{len(items)} questions over {chunks} chunks; embeddings {settings.embedding_model}; "
         f"chunks {settings.chunk_max_chars} chars with {settings.chunk_overlap_chars} overlap; "
-        f"top {k}."
+        f"top {k}; {settings.retrieval} retrieval."
     )
     print(setup)
 

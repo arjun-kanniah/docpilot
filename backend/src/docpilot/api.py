@@ -16,11 +16,12 @@ from docpilot.config import Settings, get_settings
 from docpilot.db import get_session
 from docpilot.embeddings import Embedder, get_embedder
 from docpilot.followup import recent, standalone
-from docpilot.ingest import EmptyDocumentError, SearchHit, ingest_document, search_chunks
+from docpilot.ingest import EmptyDocumentError, ingest_document
 from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice, LLMConfigError, LLMRegistry, get_llm_registry
 from docpilot.models import Chunk, Document
 from docpilot.ratelimit import RateLimiter, get_rate_limiter, visitor_id
+from docpilot.retrieval import SearchHit, search_chunks
 from docpilot.schemas import (
     AgentIn,
     AskIn,
@@ -125,8 +126,10 @@ def delete_document(document_id: uuid.UUID, session: SessionDep) -> None:
 
 
 @router.post("/search", response_model=list[SearchHitOut])
-def search(body: SearchIn, session: SessionDep, embedder: EmbedderDep) -> list[SearchHitOut]:
-    hits = search_chunks(session, embedder, body.query, body.k)
+def search(
+    body: SearchIn, session: SessionDep, embedder: EmbedderDep, settings: SettingsDep
+) -> list[SearchHitOut]:
+    hits = search_chunks(session, embedder, body.query, body.k, method=settings.retrieval)
     return [SearchHitOut(**asdict(hit)) for hit in hits]
 
 
@@ -186,7 +189,9 @@ def prepare_ask(
         k = min(k, settings.answer_top_k)  # bigger prompts cost more
     history = recent(body.history)
     question, rewrite_usage = make_standalone(choice, history, body.question)
-    hits = search_chunks(session, embedder, question, k, body.document_ids)
+    hits = search_chunks(
+        session, embedder, question, k, body.document_ids, method=settings.retrieval
+    )
     return AskPlan(question, question != body.question, hits, choice, history, rewrite_usage)
 
 
@@ -312,7 +317,14 @@ def agent(
     graph = build_graph(
         build_model(choice.provider, choice.model, limits.step_max_tokens),
         build_model(choice.provider, choice.model, settings.answer_max_tokens),
-        make_tools(session, embedder, book, settings.agent_search_k, plan.document_ids),
+        make_tools(
+            session,
+            embedder,
+            book,
+            settings.agent_search_k,
+            plan.document_ids,
+            settings.retrieval,
+        ),
         book,
         limits,
     )

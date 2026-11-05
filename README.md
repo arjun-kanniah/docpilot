@@ -69,7 +69,9 @@ Then ask the questions in [`demo/sample_questions.md`](demo/sample_questions.md)
 3. **Chunk** into ~1,000-character passages on paragraph and sentence boundaries, with a
    150-character overlap so a sentence cut at a boundary is still findable.
 4. **Embed** each chunk locally with `BAAI/bge-small-en-v1.5` (384 dimensions, CPU, no API cost).
-5. **Store** in Postgres with an HNSW index for fast cosine-similarity search.
+5. **Store** in Postgres with an HNSW index for fast cosine-similarity search, plus a full-text
+   index for keyword and hybrid search (`DOCPILOT_RETRIEVAL=hybrid`; the default, `vector`,
+   measured better on public benchmarks: see [retrieval experiments](docs/retrieval-experiments.md)).
 
 | Endpoint | Purpose |
 |---|---|
@@ -281,11 +283,12 @@ roughly in order:
   (Pub/Sub or Cloud Tasks into a Cloud Run job), report status, and retry failures. Text is
   extracted with pypdf, which reads only a PDF's text layer, so scanned pages need OCR and
   tables need layout-aware parsing.
-- **Retrieval that holds up at scale.** Search is vector-only, which works on five documents
-  but weakens on thousands of near-duplicates, part numbers and exact phrases. Next steps:
-  hybrid search (Postgres full-text plus vectors), a reranker, and metadata filters such as
-  date and document type, each one measured on an evaluation set built from the client's own
-  documents before and after.
+- **Retrieval that holds up at scale.** The five-document demo can't show this, so DocPilot
+  is benchmarked on public datasets of up to 57,000 documents
+  ([retrieval experiments](docs/retrieval-experiments.md)). Hybrid search, the usual advice,
+  didn't beat vector search there. A client library of part numbers or legal citations might
+  differ, so the choice is measured on an evaluation set built from the client's own
+  documents. Rerankers and metadata filters (date, document type) come next.
 - **Shared rate limits and budgets.** Limits live in memory on each instance, so with two
   instances they're approximate, and the real backstop is each provider's spend limit.
   Production would keep counters in Redis or Postgres, with per-user quotas and a token budget

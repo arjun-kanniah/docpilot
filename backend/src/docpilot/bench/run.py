@@ -7,18 +7,24 @@ import uuid
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from itertools import islice
+from types import SimpleNamespace
+from typing import cast
 
 from sqlalchemy import func, insert, select, text
 from sqlalchemy.orm import Session
 
+from docpilot.bench.bm25 import Bm25Chunks
 from docpilot.bench.datasets import CorpusDoc, Dataset
 from docpilot.bench.metrics import ndcg_at_k, percentile, recall_at_k, reciprocal_rank
 from docpilot.chunking import split_text
 from docpilot.embeddings import Embedder
-from docpilot.ingest import search_chunks
 from docpilot.models import Chunk, Document
+from docpilot.retrieval import Method, fuse, search_chunks
 
-PIPELINES = ("vector",)
+# vector, keyword and hybrid are the app's own retrieval methods. bm25 is a reference ranking
+# for the keyword experiment (bench/bm25.py), and hybrid_bm25 merges it with vector search the
+# same way hybrid does, to show what a BM25 ranking inside Postgres would be worth.
+PIPELINES = ("vector", "keyword", "hybrid", "bm25", "hybrid_bm25")
 
 
 @dataclass(frozen=True)
@@ -126,16 +132,43 @@ def run_queries(
     """Run each query through the app's search and rank documents by their best chunk.
 
     pgvector's HNSW scan returns at most `hnsw.ef_search` rows (40 by default), so it is raised
-    above `chunk_k` here; the app asks for only 6 passages, well inside the default.
+    above `chunk_k` here; the app asks for only 6 passages, well inside the default. Hybrid
+    takes `chunk_k` passages from each list before merging (the app takes 40).
     """
     if pipeline not in PIPELINES:
         raise ValueError(f"Unknown pipeline {pipeline!r}; choose from {', '.join(PIPELINES)}")
     session.execute(text(f"SET hnsw.ef_search = {int(ef_search)}"))
 
+    chunk_documents: Callable[[str], list[uuid.UUID]]
+    if pipeline in ("bm25", "hybrid_bm25"):
+        bm25 = Bm25Chunks(session)
+
+        def by_words(query: str) -> list[tuple[SimpleNamespace, uuid.UUID]]:
+            return [(SimpleNamespace(id=c), d) for c, d in bm25.search(query, chunk_k)]
+
+    if pipeline == "bm25":
+
+        def chunk_documents(query: str) -> list[uuid.UUID]:
+            return [document_id for _, document_id in by_words(query)]
+    elif pipeline == "hybrid_bm25":
+
+        def chunk_documents(query: str) -> list[uuid.UUID]:
+            hits = search_chunks(session, embedder, query, chunk_k)
+            by_meaning = [(SimpleNamespace(id=h.chunk_id), h.document_id) for h in hits]
+            return [document_id for _, document_id in fuse([by_meaning, by_words(query)])[:chunk_k]]
+    else:
+        method = cast(Method, pipeline)
+
+        def chunk_documents(query: str) -> list[uuid.UUID]:
+            hits = search_chunks(
+                session, embedder, query, chunk_k, method=method, candidates=chunk_k
+            )
+            return [hit.document_id for hit in hits]
+
     def search(query: str) -> list[str]:
         ranked: list[str] = []
-        for hit in search_chunks(session, embedder, query, chunk_k):
-            doc = ids[hit.document_id]
+        for document_id in chunk_documents(query):
+            doc = ids[document_id]
             if doc not in ranked:
                 ranked.append(doc)
         return ranked

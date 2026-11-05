@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Computed, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from docpilot.db import Base
@@ -36,5 +37,9 @@ class Chunk(Base):
     page: Mapped[int | None] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+    # Filled in by Postgres from `text`, for keyword search (migration 0002)
+    text_search: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', text)", persisted=True), deferred=True
+    )
 
     document: Mapped[Document] = relationship(back_populates="chunks")

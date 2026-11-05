@@ -6,6 +6,7 @@ import pytest
 from conftest import FakeEmbedder
 from sqlalchemy.orm import Session
 
+from docpilot.bench.compare import compare
 from docpilot.bench.datasets import CorpusDoc, load
 from docpilot.bench.metrics import ndcg_at_k, percentile, recall_at_k, reciprocal_rank
 from docpilot.bench.run import (
@@ -123,6 +124,34 @@ def test_check_dataset_reports_missing_judged_documents(
     ]
 
 
+@pytest.mark.parametrize("pipeline", ["keyword", "hybrid", "bm25", "hybrid_bm25"])
+def test_every_pipeline_ranks_the_right_document_first(
+    pipeline: str, tmp_path: Path, db_session: Session
+) -> None:
+    dataset = load("tiny", write_dataset(tmp_path))
+    index_corpus(db_session, FakeEmbedder(), dataset.corpus(), max_chars=1000, overlap=150)
+    ids = document_ids(db_session)
+    results = run_queries(
+        db_session, FakeEmbedder(), dataset.queries, ids, pipeline=pipeline, warmup=0
+    )
+    assert {r.query_id: r.ranked[0] for r in results} == {"q1": "d1", "q2": "d3"}
+
+
 def test_run_queries_rejects_unknown_pipelines(db_session: Session) -> None:
     with pytest.raises(ValueError, match="Unknown pipeline"):
         run_queries(db_session, FakeEmbedder(), {}, {}, pipeline="magic")
+
+
+def test_compare_finds_a_consistent_gain_and_not_noise() -> None:
+    baseline = {f"q{i}": 0.5 for i in range(100)}
+    gain = {q: v + 0.1 for q, v in baseline.items()}
+    c = compare(baseline, gain)
+    assert c.difference == pytest.approx(0.1)
+    assert c.low > 0 and c.p_value < 0.01 and (c.better, c.worse) == (100, 0)
+
+    noise = {q: v + (0.1 if i % 2 else -0.1) for i, (q, v) in enumerate(baseline.items())}
+    c = compare(baseline, noise)
+    assert c.low < 0 < c.high and c.p_value > 0.5
+
+    with pytest.raises(ValueError, match="different queries"):
+        compare(baseline, {"q0": 1.0})

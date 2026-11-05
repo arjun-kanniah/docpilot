@@ -1,6 +1,5 @@
 import hashlib
 import uuid
-from collections.abc import Collection
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -21,16 +20,6 @@ class IngestResult:
     document: Document
     chunk_count: int
     duplicate: bool
-
-
-@dataclass(frozen=True)
-class SearchHit:
-    chunk_id: uuid.UUID
-    document_id: uuid.UUID
-    filename: str
-    page: int | None
-    text: str
-    score: float
 
 
 def ingest_document(
@@ -66,33 +55,6 @@ def ingest_document(
     session.add(document)
     session.commit()
     return IngestResult(document, len(chunks), duplicate=False)
-
-
-def search_chunks(
-    session: Session,
-    embedder: Embedder,
-    query: str,
-    k: int,
-    document_ids: Collection[uuid.UUID] | None = None,
-) -> list[SearchHit]:
-    """Nearest chunks by cosine similarity (1.0 = identical direction), optionally only from
-    the given documents."""
-    distance = Chunk.embedding.cosine_distance(embedder.embed_query(query))
-    statement = select(Chunk, Document.filename, distance.label("distance")).join(Document)
-    if document_ids is not None:
-        statement = statement.where(Chunk.document_id.in_(document_ids))
-    rows = session.execute(statement.order_by(distance).limit(k)).all()
-    return [
-        SearchHit(
-            chunk_id=chunk.id,
-            document_id=chunk.document_id,
-            filename=filename,
-            page=chunk.page,
-            text=chunk.text,
-            score=round(1 - dist, 4),
-        )
-        for chunk, filename, dist in rows
-    ]
 
 
 def _chunk_count(session: Session, document_id: uuid.UUID) -> int:

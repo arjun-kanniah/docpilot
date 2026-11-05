@@ -15,9 +15,10 @@ from docpilot.config import Settings
 from docpilot.dbsetup import BACKEND_DIR
 from docpilot.embeddings import Embedder
 from docpilot.evaluation.grader import Grade
-from docpilot.ingest import SearchHit, ingest_document, search_chunks
+from docpilot.ingest import ingest_document
 from docpilot.llm.base import LLMError, Usage
 from docpilot.llm.providers import Choice
+from docpilot.retrieval import Method, SearchHit, search_chunks
 
 DEMO_DIR = BACKEND_DIR.parent / "demo"
 EVAL_SET = DEMO_DIR / "eval_set.json"
@@ -105,9 +106,16 @@ def index_corpus(
 
 
 def retrieve(
-    session: Session, embedder: Embedder, items: Sequence[EvalItem], k: int
+    session: Session,
+    embedder: Embedder,
+    items: Sequence[EvalItem],
+    k: int,
+    method: Method = "vector",
 ) -> list[CaseResult]:
-    return [CaseResult(item, search_chunks(session, embedder, item.question, k)) for item in items]
+    return [
+        CaseResult(item, search_chunks(session, embedder, item.question, k, method=method))
+        for item in items
+    ]
 
 
 AnswerFn = Callable[[CaseResult], tuple[str, Usage]]

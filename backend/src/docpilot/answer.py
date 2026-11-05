@@ -1,8 +1,8 @@
 from collections.abc import Iterator, Sequence
 
 from docpilot.followup import Turn, conversation_block
-from docpilot.ingest import SearchHit
 from docpilot.llm.base import ChatModel, Usage
+from docpilot.retrieval import SearchHit
 
 SYSTEM_PROMPT = """\
 You answer questions about the user's documents, using only the numbered sources provided.

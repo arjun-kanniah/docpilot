@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
     # Load the model when the server starts rather than on the first question (about 9 s on
     # Cloud Run), so the cold start is paid before the instance takes traffic
     preload_embedder: bool = False
+
+    # Retrieval: "vector" (embeddings only) or "hybrid" (embeddings and keyword search, merged
+    # with Reciprocal Rank Fusion); see docs/retrieval-experiments.md
+    retrieval: Literal["vector", "hybrid"] = "vector"
 
     # Answering: defaults for POST /api/ask; a request can pick another allowlisted model
     llm_provider: str = "anthropic"

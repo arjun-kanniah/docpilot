@@ -10,8 +10,8 @@ from docpilot.evaluation.runner import (
     answer_and_grade,
     load_eval_set,
 )
-from docpilot.ingest import SearchHit
 from docpilot.llm.base import Usage
+from docpilot.retrieval import SearchHit
 
 CATEGORIES = {
     "factual",
