@@ -285,10 +285,11 @@ roughly in order:
   tables need layout-aware parsing.
 - **Retrieval that holds up at scale.** The five-document demo can't show this, so DocPilot
   is benchmarked on public datasets of up to 57,000 documents
-  ([retrieval experiments](docs/retrieval-experiments.md)). Hybrid search, the usual advice,
-  didn't beat vector search there. A client library of part numbers or legal citations might
-  differ, so the choice is measured on an evaluation set built from the client's own
-  documents. Rerankers and metadata filters (date, document type) come next.
+  ([retrieval experiments](docs/retrieval-experiments.md)). Hybrid search and rerankers, the
+  usual advice, didn't beat vector search there, and rerankers cost seconds per question on a
+  small CPU. Both are built in and off by default. A client library of part numbers or legal
+  citations might differ, so the choice is measured on an evaluation set built from the
+  client's own documents.
 - **Shared rate limits and budgets.** Limits live in memory on each instance, so with two
   instances they're approximate, and the real backstop is each provider's spend limit.
   Production would keep counters in Redis or Postgres, with per-user quotas and a token budget
