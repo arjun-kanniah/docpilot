@@ -34,9 +34,11 @@ class Comparison:
 
 
 def compare(baseline: dict[str, float], candidate: dict[str, float]) -> Comparison:
-    if baseline.keys() != candidate.keys():
-        raise ValueError("The runs answered different queries")
-    ids = sorted(baseline)
+    """Compare on the candidate's queries, which may be a subset of the baseline's (a run with
+    --limit); `baseline` in the result is then the baseline's mean on that subset."""
+    if not candidate.keys() <= baseline.keys():
+        raise ValueError("The candidate answered queries the baseline didn't")
+    ids = sorted(candidate)
     a = np.array([baseline[i] for i in ids])
     b = np.array([candidate[i] for i in ids])
     diff = b - a
@@ -80,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         c = compare(base["per_query_ndcg_at_10"], run["per_query_ndcg_at_10"])
         p = "p < 0.001" if c.p_value < 0.001 else f"p = {c.p_value:.3f}"
         print(
-            f"  {label(run)}: {c.candidate:.3f}, {c.difference:+.3f} "
+            f"  {label(run)}: {c.candidate:.3f} vs {c.baseline:.3f}, {c.difference:+.3f} "
             f"(95% CI {c.low:+.3f} to {c.high:+.3f}, {p}); "
             f"better on {c.better} of {c.queries} queries, worse on {c.worse}"
         )

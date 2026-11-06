@@ -54,6 +54,8 @@ nDCG@10 per pipeline and dataset (higher is better). Each experiment's details a
 | E1 | *Reference: BM25 (in memory)* | *0.311* | *0.667* | *0.238* | *1 ms* |
 | E2 | Hybrid: vector + Postgres keyword | 0.354 | 0.699 | **0.320** | 252 ms |
 | E2 | *Reference: hybrid with BM25* | ***0.363*** | *0.728* | ***0.349*** | *43 ms* |
+| E3 | Vector + best small reranker (jina-tiny, top 50) | 0.356 | 0.729 | **0.359** | 3.1 s (1 core) |
+| E3 | Vector + bge-reranker-base (top 50) | **0.320** | **0.668** | **0.339** | 27 s (1 core) |
 
 Bold: a significant difference from vector search (95% interval excludes zero). Italic: bench
 only, not available in the app. E0's row is the re-run after the keyword migration, which
@@ -61,7 +63,9 @@ rebuilt the vector index (0.350 before on NFCorpus; the rest unchanged).
 
 **So far, vector search alone stays the default.** Hybrid search with Postgres's own ranking
 doesn't beat it on any dataset and is 7× slower on the largest. Even with a proper BM25 ranking,
-hybrid gains 0.01 to 0.014 on two datasets (significant on one) and loses 0.03 on FiQA.
+hybrid gains 0.01 to 0.014 on two datasets (significant on one) and loses 0.03 on FiQA. No
+reranker improved it significantly anywhere either, and on one CPU core each one adds seconds
+per question.
 
 ## E0: baseline, vector search
 
@@ -179,3 +183,77 @@ Options not tried yet:
 - Use keyword search only for queries that look like codes or names.
 
 E3 tests whether a reranker over the top 50 makes this moot.
+
+## E3: rerankers
+
+A cross-encoder reads the question and each passage together and scores the pair, which is
+usually more accurate than comparing embeddings made separately, and much slower: one model
+pass per passage. Here it reorders vector search's top 50 chunks (`DOCPILOT_RERANKER` in the
+app, which reorders the top 20 by default). Five local models, all run through fastembed:
+
+| Reranker | Size | License (model card) | Training data (model card) |
+|---|---|---|---|
+| [ms-marco-MiniLM-L-6-v2](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2) | 80 MB | Apache-2.0 | MS MARCO |
+| [ms-marco-MiniLM-L-12-v2](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L12-v2) | 120 MB | Apache-2.0 | MS MARCO |
+| [jina-reranker-v1-tiny-en](https://huggingface.co/jinaai/jina-reranker-v1-tiny-en) | 130 MB | Apache-2.0 | Not stated (distilled from jina-reranker-v1-base) |
+| [bge-reranker-base](https://huggingface.co/BAAI/bge-reranker-base) | 1.0 GB | MIT ("can be used for commercial purposes free of charge") | "multilingual pair data", not listed |
+| [bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3), int8 | 570 MB | Apache-2.0 | A multilingual mixture (bge-m3-data, Quora, FEVER); unclear if it covers this model |
+
+[MS MARCO's terms](https://microsoft.github.io/msmarco/) say the dataset is "intended for
+non-commercial research purposes only", and the MiniLM models' Apache-2.0 license doesn't
+address that. Check both before using these models for a client. jina-reranker-v2 was left out:
+its license is non-commercial (CC BY-NC 4.0).
+
+**Speed first**, measured on one core (like the demo's 1-vCPU instance) reranking 50 FiQA
+passages (567 characters on average):
+
+| Reranker | 50 passages, 1 core | Memory (process) |
+|---|---|---|
+| jina-tiny | 3.1 s | 465 MB |
+| MiniLM-L6 | 3.8 s | 465 MB |
+| MiniLM-L12 | 7.5 s | 502 MB |
+| bge-reranker-base | 27 s | 2.0 GB |
+| bge-reranker-v2-m3, int8 | 70 s | 2.0 GB |
+
+The int8 model is slower than the full-size bge-reranker-base here, likely because this 2018 CPU
+lacks the int8 instructions (VNNI) that make quantized models fast; newer server CPUs may differ.
+The quality runs below used all six cores so they finished in hours (the scores don't depend
+on it). Even on six cores, the median question took 1.9 s (jina-tiny) to 34 s (v2-m3).
+
+**Quality**, nDCG@10 against vector search alone (95% interval; bold is significant):
+
+| Reranker | NFCorpus | SciFact | FiQA |
+|---|---|---|---|
+| None (vector search) | 0.349 | 0.718 | 0.379 |
+| MiniLM-L6 | 0.358, +0.009 (−0.006 to +0.023) | 0.712, −0.006 (−0.035 to +0.022) | 0.376, −0.003 (−0.019 to +0.012) |
+| jina-tiny | 0.356, +0.006 (−0.009 to +0.022) | 0.729, +0.011 (−0.017 to +0.039) | 0.359, **−0.020 (−0.037 to −0.003)** |
+| MiniLM-L12 | 0.355, +0.006 (−0.009 to +0.020) | 0.706, −0.012 (−0.040 to +0.016) | 0.372, −0.007 (−0.022 to +0.007) |
+| bge-reranker-base | 0.320, **−0.030 (−0.048 to −0.012)** | 0.668, **−0.050 (−0.079 to −0.021)** | 0.339, **−0.041 (−0.057 to −0.024)** |
+| bge-reranker-v2-m3, int8 (first 100 queries) | 0.373 vs 0.387, −0.014 (−0.037 to +0.009) | 0.773 vs 0.746, +0.027 (−0.017 to +0.076) | not run (≈ 6 h) |
+
+v2-m3 ran on the first 100 queries of each dataset to keep it to two hours, so it is compared
+with vector search on the same 100 queries (whose mean differs from the full set's).
+
+- **No reranker improves on bge-small significantly, on any dataset.** The small ones are
+  within ±0.012 on two datasets; the best measured gain is v2-m3's +0.027 on 100 SciFact
+  queries, which isn't significant either. Reranking only reorders the top 50, so Recall@50
+  can't change, and Recall@20 moved by at most 0.016 (full-set runs).
+- **bge-reranker-base makes results significantly worse on all three.** This was checked
+  before accepting it: on hand-made examples it scores the relevant passage highest (higher is
+  better, as for the others), and its scores don't depend on batching. The model card doesn't
+  say what English data it saw; it may simply be weaker on these domains than the embedder it
+  is reranking.
+- **Why this differs from the usual advice:** rerankers are usually shown fixing a weak first
+  stage such as BM25 (FiQA 0.238 here), not a strong 2023 embedding model. Whether bge-small
+  saw any of these datasets during training would matter. Its paper and model card describe
+  "large-scale pairs data" without listing the sources, so that can't be ruled out. E4
+  compares other embedders, which shows whether these datasets leave room above 0.38 on FiQA.
+- **A side finding:** the int8 v2-m3 model's scores shift by up to 0.85 depending on what else
+  is in the batch (the others don't shift at all), probably because the quantization scale is
+  chosen per batch. Its rankings are slightly noisy as a result.
+
+**What ships:** reranking is in DocPilot, off by default (`DOCPILOT_RERANKER` to turn it on).
+The demo stays without it. No model gave a measurable gain, and on its single vCPU even the
+fastest would add roughly 1.2 to 1.5 s to every question for 20 passages (estimated from the
+50-passage times above). A client library unlike these (contracts, part numbers) could still benefit, which
+is what an evaluation on the client's own documents decides.

@@ -153,5 +153,7 @@ def test_compare_finds_a_consistent_gain_and_not_noise() -> None:
     c = compare(baseline, noise)
     assert c.low < 0 < c.high and c.p_value > 0.5
 
-    with pytest.raises(ValueError, match="different queries"):
-        compare(baseline, {"q0": 1.0})
+    subset = compare(baseline, {"q0": 1.0, "q1": 0.5})  # a --limit run
+    assert (subset.queries, subset.baseline, subset.difference) == (2, 0.5, 0.25)
+    with pytest.raises(ValueError, match="the baseline didn't"):
+        compare(baseline, {"other": 1.0})
