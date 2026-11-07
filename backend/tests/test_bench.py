@@ -1,6 +1,7 @@
 import json
 import math
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from conftest import FakeEmbedder
@@ -157,3 +158,31 @@ def test_compare_finds_a_consistent_gain_and_not_noise() -> None:
     assert (subset.queries, subset.baseline, subset.difference) == (2, 0.5, 0.25)
     with pytest.raises(ValueError, match="the baseline didn't"):
         compare(baseline, {"other": 1.0})
+
+
+def test_each_embedder_gets_its_own_database_and_bge_small_keeps_the_original() -> None:
+    from docpilot.bench.embedders import EMBEDDERS, database_name
+
+    assert database_name("fiqa", "bge-small") == "docpilot_bench_fiqa"
+    assert database_name("fiqa", "openai-large") == "docpilot_bench_fiqa_openai_large"
+    assert all(spec.dimensions <= 2000 for spec in EMBEDDERS.values())  # HNSW's limit
+
+
+def test_openai_embedder_batches_keeps_order_and_counts_cost() -> None:
+    from docpilot.bench.embedders import EMBEDDERS, OpenAIEmbedder
+
+    calls: list[int] = []
+
+    def create(model: str, input: list[str], dimensions: int) -> SimpleNamespace:
+        calls.append(len(input))
+        data = [SimpleNamespace(index=i, embedding=[float(len(t))]) for i, t in enumerate(input)]
+        return SimpleNamespace(data=data[::-1], usage=SimpleNamespace(total_tokens=10 * len(input)))
+
+    embedder = OpenAIEmbedder.__new__(OpenAIEmbedder)
+    embedder.spec, embedder.tokens = EMBEDDERS["openai-small"], 0
+    embedder._client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+    texts = ["a" * (i % 7) for i in range(OpenAIEmbedder.BATCH + 3)]
+    assert embedder.embed_passages(texts) == [[float(len(t))] for t in texts]
+    assert calls == [OpenAIEmbedder.BATCH, 3]
+    assert embedder.tokens == 10 * len(texts)
+    assert embedder.usd == pytest.approx(embedder.tokens / 1e6 * 0.02)

@@ -56,16 +56,21 @@ nDCG@10 per pipeline and dataset (higher is better). Each experiment's details a
 | E2 | *Reference: hybrid with BM25* | ***0.363*** | *0.728* | ***0.349*** | *43 ms* |
 | E3 | Vector + best small reranker (jina-tiny, top 50) | 0.356 | 0.729 | **0.359** | 3.1 s (1 core) |
 | E3 | Vector + bge-reranker-base (top 50) | **0.320** | **0.668** | **0.339** | 27 s (1 core) |
+| E4 | Vector, bge-base (local, 768 dims) | **0.376** | 0.741 | not run | 89–125 ms (NFCorpus, SciFact) |
+| E4 | Vector, OpenAI text-embedding-3-small (hosted) | **0.381** | 0.725 | **0.428** | 270 ms |
+| E4 | Vector, OpenAI text-embedding-3-large, 1536 dims (hosted) | ***0.413*** | ***0.778*** | ***0.523*** | 276 ms |
 
 Bold: a significant difference from vector search (95% interval excludes zero). Italic: bench
 only, not available in the app. E0's row is the re-run after the keyword migration, which
 rebuilt the vector index (0.350 before on NFCorpus; the rest unchanged).
 
-**So far, vector search alone stays the default.** Hybrid search with Postgres's own ranking
-doesn't beat it on any dataset and is 7× slower on the largest. Even with a proper BM25 ranking,
-hybrid gains 0.01 to 0.014 on two datasets (significant on one) and loses 0.03 on FiQA. No
-reranker improved it significantly anywhere either, and on one CPU core each one adds seconds
-per question.
+**The embedding model matters more than anything added around it.** Hybrid search with
+Postgres's own ranking doesn't beat bge-small vector search on any dataset and is 7× slower on
+the largest. Even with a proper BM25 ranking, hybrid gains 0.01 to 0.014 on two datasets
+(significant on one) and loses 0.03 on FiQA. No reranker improved it significantly anywhere,
+and on one CPU core each one adds seconds per question. A better embedding model, on the
+other hand, gains up to 0.144 on FiQA (OpenAI's text-embedding-3-large, +38%), significantly
+on all three datasets, for about USD 1.30 to embed 57,638 documents.
 
 ## E0: baseline, vector search
 
@@ -257,3 +262,65 @@ The demo stays without it. No model gave a measurable gain, and on its single vC
 fastest would add roughly 1.2 to 1.5 s to every question for 20 passages (estimated from the
 50-passage times above). A client library unlike these (contracts, part numbers) could still benefit, which
 is what an evaluation on the client's own documents decides.
+
+## E4: other embedding models
+
+E3 left a question open: is bge-small simply hard to beat on these datasets, or do they leave
+room above it? E4 swaps the embedding model and nothing else (same chunks, same search code,
+`--embedder` in the bench), with one larger local model and two hosted ones:
+
+| Model | Runs | Dimensions | License / terms | List price |
+|---|---|---|---|---|
+| [bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) (today) | Locally, CPU | 384 | MIT | Free |
+| [bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5) | Locally, CPU | 768 | MIT | Free |
+| [text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small) | OpenAI API | 1,536 | OpenAI API terms | USD 0.02 per million tokens |
+| [text-embedding-3-large](https://developers.openai.com/api/docs/models/text-embedding-3-large) | OpenAI API | 1,536 (of 3,072) | OpenAI API terms | USD 0.13 per million tokens |
+
+text-embedding-3-large is asked for 1,536 numbers instead of its full 3,072, because pgvector
+can't build an HNSW index on a `vector` column over 2,000 dimensions; OpenAI's API shortens it
+without retraining. bge-base ran on NFCorpus and SciFact only: indexing on this CPU took 41 and
+59 minutes, so FiQA would take about 5 hours.
+
+**Quality**, nDCG@10 against bge-small (95% interval; bold is significant):
+
+| Model | NFCorpus | SciFact | FiQA |
+|---|---|---|---|
+| bge-small (today) | 0.349 | 0.718 | 0.379 |
+| bge-base | 0.376, **+0.027 (+0.014 to +0.041)** | 0.741, +0.023 (+0.000 to +0.046), p = 0.06 | not run |
+| text-embedding-3-small | 0.381, **+0.031 (+0.011 to +0.052)** | 0.725, +0.007 (−0.020 to +0.033) | 0.428, **+0.048 (+0.029 to +0.067)** |
+| text-embedding-3-large | 0.413, **+0.064 (+0.044 to +0.085)** | 0.778, **+0.060 (+0.034 to +0.088)** | 0.523, **+0.144 (+0.123 to +0.165)** |
+
+**Cost and speed:**
+
+| Model | Embed all three datasets (13.2M tokens) | FiQA query p50 / p95 | FiQA chunks table |
+|---|---|---|---|
+| bge-small | Free; FiQA took 1 h 51 min on this CPU | 37 / 41 ms | 325 MB |
+| bge-base | Free; ~3.5× slower than bge-small | 89–125 ms (NFCorpus, SciFact) | 88 MB for NFCorpus (39 MB with bge-small) |
+| text-embedding-3-small | USD 0.26 (13 min for FiQA) | 270 / 343 ms | 1,326 MB |
+| text-embedding-3-large | USD 1.71 (13 min for FiQA) | 276 / 351 ms | 1,326 MB |
+
+Costs are what the API reported in tokens, times the list price; all 2,542 test queries cost
+under a cent more. Hosted latency is almost all the network round trip to OpenAI from this
+machine (Alberta), and would be similar from the demo's Cloud Run region.
+
+- **The datasets do leave room, and the embedder is where it is.** text-embedding-3-large
+  beats bge-small significantly on all three datasets, by +0.06 to +0.144, far more than any
+  hybrid or reranker result, and on FiQA, where those lost, it gains 38%. Recall@50
+  on FiQA rises from 0.598 to 0.763, so a reranker or an LLM would also get more to work with.
+- **Size isn't everything:** text-embedding-3-small, the cheaper hosted model, is no better
+  than bge-small on SciFact (+0.007, not significant) and only modestly better on the other
+  two. bge-base, free and local, matches it on NFCorpus.
+- **What a hosted embedder costs a client** is not mainly the bill: USD 1.30 for 57,638
+  documents is trivial. It's that every document and every question goes to the provider, the
+  library must be re-embedded to change models, each question waits a network round trip
+  (about 250 ms more here), and vectors four times the size take four times the storage.
+- **The same caveat applies to every model here:** none of them lists its full training data,
+  so none can be shown to have not seen these datasets. The comparison is still fair in the
+  sense that matters to a client: these are the scores each model gets on public data it may or
+  may not have seen, through the same pipeline.
+
+**What ships:** decided in Phase 5, with the HNSW and filter results from E5. The options are
+bge-base (free, local, ~3× slower queries, re-embed the library) or a hosted model as a setting
+for clients whose documents may go to the provider. The bench reproduces any row:
+`just bench --dataset fiqa --embedder openai-large --experiment E4` (needs `OPENAI_API_KEY`).
+

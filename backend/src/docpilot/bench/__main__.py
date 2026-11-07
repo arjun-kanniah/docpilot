@@ -22,6 +22,13 @@ from sqlalchemy.orm import Session
 
 from docpilot import __version__
 from docpilot.bench import datasets
+from docpilot.bench.embedders import (
+    DEFAULT,
+    EMBEDDERS,
+    database_name,
+    make_embedder,
+    size_embedding_column,
+)
 from docpilot.bench.run import (
     PIPELINES,
     check_dataset,
@@ -33,7 +40,6 @@ from docpilot.bench.run import (
 )
 from docpilot.config import get_settings
 from docpilot.dbsetup import BACKEND_DIR, prepare_database
-from docpilot.embeddings import FastEmbedEmbedder
 from docpilot.reranking import FastEmbedReranker
 
 RUNS_DIR = BACKEND_DIR.parent / "eval-runs" / "bench"
@@ -52,6 +58,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m docpilot.bench", description=__doc__)
     parser.add_argument("--dataset", choices=list(datasets.DATASETS), required=True)
     parser.add_argument("--pipeline", choices=PIPELINES, default="vector")
+    parser.add_argument("--embedder", choices=list(EMBEDDERS), default=DEFAULT)
     parser.add_argument("--experiment", default="adhoc", help="label for the log, e.g. E0")
     parser.add_argument("--limit", type=int, help="run only the first N test queries")
     parser.add_argument("--chunk-k", type=int, default=150, help="passages retrieved per query")
@@ -89,21 +96,31 @@ def main(argv: list[str] | None = None) -> int:
     queries = dict(list(dataset.queries.items())[: args.limit])
     print(f"{args.dataset}: {len(dataset.queries)} test queries ({len(queries)} to run)")
 
+    spec = EMBEDDERS[args.embedder]
+    cache_dir = str(settings.model_cache_dir)
+    openai_key = settings.openai_api_key.get_secret_value()
     index_config = {
-        "embedding_model": settings.embedding_model,
+        "embedding_model": spec.model,
+        "embedding_dimensions": spec.dimensions,
         "chunk_max_chars": settings.chunk_max_chars,
         "chunk_overlap_chars": settings.chunk_overlap_chars,
     }
-    marker = dataset.path / "index.json"
-    engine = create_engine(prepare_database(f"docpilot_bench_{args.dataset}"))
+    if args.embedder == DEFAULT:  # the first experiments' marker, so their index stays valid
+        index_config.pop("embedding_dimensions")
+        marker = dataset.path / "index.json"
+    else:
+        marker = dataset.path / f"index-{args.embedder}.json"
+    engine = create_engine(prepare_database(database_name(args.dataset, args.embedder)))
+    index_usd = None
     with Session(engine, expire_on_commit=False) as session:
         current = json.loads(marker.read_text()) if marker.exists() else None
         count = indexed_count(session)
         if args.reindex or current != {**index_config, "documents": count} or count == 0:
             session.execute(text("TRUNCATE documents CASCADE"))
             session.commit()
+            size_embedding_column(session, spec.dimensions)
             print("Indexing (all cores)...", flush=True)
-            embedder = FastEmbedEmbedder(settings.embedding_model, str(settings.model_cache_dir))
+            embedder = make_embedder(args.embedder, cache_dir, openai_key)
             stats = index_corpus(
                 session,
                 embedder,
@@ -117,6 +134,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"in {stats.seconds:.0f} s"
             )
             marker.write_text(json.dumps({**index_config, "documents": stats.documents}))
+            index_usd = getattr(embedder, "usd", None)
+            if index_usd is not None:
+                print(f"Indexing cost USD {index_usd:.3f} ({embedder.tokens} tokens)")
             del embedder
 
         ids = document_ids(session)
@@ -126,9 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         index_mb = session.scalar(text("SELECT pg_total_relation_size('chunks') / 1048576.0"))
 
         cores = pin_to_cores(args.threads)
-        embedder = FastEmbedEmbedder(
-            settings.embedding_model, str(settings.model_cache_dir), threads=args.threads
-        )
+        embedder = make_embedder(args.embedder, cache_dir, openai_key, threads=args.threads)
         reranker = None
         if args.reranker:
             reranker = FastEmbedReranker(
@@ -150,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     summary = summarize(results, dataset.qrels)
 
-    name = args.pipeline
+    name = args.pipeline if args.embedder == DEFAULT else f"{args.pipeline}[{args.embedder}]"
     if args.reranker:
         name += f"+{args.reranker}@{args.rerank_k}"
     print(
@@ -163,7 +181,8 @@ def main(argv: list[str] | None = None) -> int:
 
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = RUNS_DIR / f"{stamp}-{args.experiment}-{name.replace('@', '-')}-{args.dataset}.json"
+    safe = name.replace("@", "-").replace("[", "-").replace("]", "")
+    out = RUNS_DIR / f"{stamp}-{args.experiment}-{safe}-{args.dataset}.json"
     record = {
         "experiment": args.experiment,
         "pipeline": name,
@@ -177,6 +196,12 @@ def main(argv: list[str] | None = None) -> int:
             "query_cores": len(cores) or None,
             "reranker": RERANKERS.get(args.reranker, args.reranker) if args.reranker else None,
             "rerank_k": args.rerank_k if args.reranker else None,
+        },
+        "cost": {
+            "usd_per_million_tokens": spec.usd_per_million_tokens,
+            "query_tokens": getattr(embedder, "tokens", 0),
+            "query_usd": getattr(embedder, "usd", 0.0),
+            "index_usd_this_run": index_usd,
         },
         "index": {"documents": len(ids), "chunks": chunk_count, "chunks_table_mb": float(index_mb)},
         "machine": {"cpu": cpu_name(), "python": sys.version.split()[0]},
