@@ -211,6 +211,32 @@ Conflicting versions were the main failure: one prompt rule for documents that d
 the set from 56 to 58 of 60. These tasks also drove the agent's design; see
 [what the sets found](demo/eval-results/agent/).
 
+## Retrieval at scale
+
+The demo library is five documents, so it can't show whether retrieval holds up on a real
+one. DocPilot's own pipeline (same chunking, embeddings, database and search code) is
+benchmarked on three public [BEIR](https://github.com/beir-cellar/beir) datasets of 3,600 to
+57,000 documents with human relevance judgments, one change at a time, with a paired
+significance test for every comparison (`just bench`, `just bench-compare`).
+
+![Change in nDCG@10 against vector search with bge-small for hybrid search, three rerankers and three embedding models, on NFCorpus, SciFact and FiQA](docs/retrieval-results.png)
+
+- **The common upgrades didn't pay off here.** Hybrid search (vector + keyword, merged with
+  Reciprocal Rank Fusion) gained on one dataset and lost on the largest. No reranker improved
+  results significantly, and on one CPU core each one adds 3 to 27 seconds per question.
+- **The embedding model did.** OpenAI's text-embedding-3-large beat the default (bge-small,
+  local) on all three datasets, by up to +0.144 nDCG@10 (+38%) on the 57,638-document FiQA,
+  for USD 1.30 to embed it. The price is that documents and questions go to the provider, each
+  question waits ~250 ms more, and changing models means re-embedding.
+- **A bug the demo couldn't show:** a chat limited to 1% of a large library got no passages
+  for 69% of questions, because pgvector filters *after* its index search. One database setting
+  (iterative index scans, migration 0003) fixes it, and every search now returns its passages.
+
+The demo keeps bge-small: its library is answered perfectly, and it runs locally at ~37 ms a
+question. Hybrid search and reranking are built in and off by default (`DOCPILOT_RETRIEVAL`,
+`DOCPILOT_RERANKER`). Every result, the ones that didn't help included, is in
+[the experiment log](docs/retrieval-experiments.md).
+
 ## Deploying
 
 The public demo runs on Google Cloud Run with a [Neon](https://neon.tech) Postgres database,
@@ -283,13 +309,12 @@ roughly in order:
   (Pub/Sub or Cloud Tasks into a Cloud Run job), report status, and retry failures. Text is
   extracted with pypdf, which reads only a PDF's text layer, so scanned pages need OCR and
   tables need layout-aware parsing.
-- **Retrieval that holds up at scale.** The five-document demo can't show this, so DocPilot
-  is benchmarked on public datasets of up to 57,000 documents
-  ([retrieval experiments](docs/retrieval-experiments.md)). Hybrid search and rerankers, the
-  usual advice, didn't beat vector search there, and rerankers cost seconds per question on a
-  small CPU. Both are built in and off by default. A client library of part numbers or legal
-  citations might differ, so the choice is measured on an evaluation set built from the
-  client's own documents.
+- **Retrieval chosen on the client's documents.** On public benchmarks
+  ([Retrieval at scale](#retrieval-at-scale)), a stronger embedding model helped far more
+  than hybrid search or rerankers. A library of part numbers or legal citations might differ,
+  so the embedder, hybrid search and reranking would be chosen with the same bench on an
+  evaluation set built from the client's own documents, weighing whether their documents may
+  go to a hosted model.
 - **Shared rate limits and budgets.** Limits live in memory on each instance, so with two
   instances they're approximate, and the real backstop is each provider's spend limit.
   Production would keep counters in Redis or Postgres, with per-user quotas and a token budget
@@ -331,6 +356,7 @@ mise.toml       pinned toolchain
   versions, with its own Research mode evaluation
 - [x] Chats: saved in the browser, follow-up questions rewritten to stand alone, and each chat
   limited to the documents it chooses
+- [x] Retrieval benchmarked on public datasets: hybrid search, rerankers, embedders, filters
 - [ ] Research mode evaluation in CI on a schedule, with a pass threshold
 
 ## License
