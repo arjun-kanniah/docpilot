@@ -1,0 +1,174 @@
+{
+  "experiment": "E5",
+  "pipeline": "filters",
+  "dataset": "scifact",
+  "run_at": "2026-11-07T11:51:56-06:00",
+  "config": {
+    "k": 6,
+    "seed": 2026,
+    "modes": {
+      "default": [
+        "SET hnsw.ef_search = 40",
+        "SET hnsw.iterative_scan = off"
+      ],
+      "iterative": [
+        "SET hnsw.ef_search = 40",
+        "SET hnsw.iterative_scan = strict_order"
+      ],
+      "exact": [
+        "SET enable_indexscan = off"
+      ]
+    },
+    "query_cores": 1
+  },
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+    "python": "3.12.3"
+  },
+  "rows": [
+    {
+      "fraction": 1.0,
+      "documents_allowed": 5183,
+      "mode": "default",
+      "uses_hnsw": true,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 2.782022987958044,
+      "p95_ms": 4.54497638565954,
+      "recall_vs_exact": 0.9877777777777778
+    },
+    {
+      "fraction": 1.0,
+      "documents_allowed": 5183,
+      "mode": "iterative",
+      "uses_hnsw": true,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 2.5636994978412986,
+      "p95_ms": 3.068233316298575,
+      "recall_vs_exact": 0.9877777777777778
+    },
+    {
+      "fraction": 1.0,
+      "documents_allowed": 5183,
+      "mode": "exact",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 33.99148501921445,
+      "p95_ms": 37.7711354609346,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.1,
+      "documents_allowed": 518,
+      "mode": "default",
+      "uses_hnsw": true,
+      "mean_returned": 3.65,
+      "short_queries": 0.7466666666666667,
+      "empty_queries": 0.06333333333333334,
+      "p50_ms": 6.026889983331785,
+      "p95_ms": 6.918921164469793,
+      "recall_vs_exact": 0.5955555555555555
+    },
+    {
+      "fraction": 0.1,
+      "documents_allowed": 518,
+      "mode": "iterative",
+      "uses_hnsw": true,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 6.656295998254791,
+      "p95_ms": 7.934907049639151,
+      "recall_vs_exact": 0.933888888888889
+    },
+    {
+      "fraction": 0.1,
+      "documents_allowed": 518,
+      "mode": "exact",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 10.832487983861938,
+      "p95_ms": 12.708603544160727,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.01,
+      "documents_allowed": 52,
+      "mode": "default",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 3.828217013506219,
+      "p95_ms": 4.530001693638042,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.01,
+      "documents_allowed": 52,
+      "mode": "iterative",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 3.741510008694604,
+      "p95_ms": 4.279953203513287,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.01,
+      "documents_allowed": 52,
+      "mode": "exact",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 3.744224988622591,
+      "p95_ms": 4.4900671462528425,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.001,
+      "documents_allowed": 5,
+      "mode": "default",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 1.954898500116542,
+      "p95_ms": 2.817055463674479,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.001,
+      "documents_allowed": 5,
+      "mode": "iterative",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 1.88045299728401,
+      "p95_ms": 2.230469015194103,
+      "recall_vs_exact": 1.0
+    },
+    {
+      "fraction": 0.001,
+      "documents_allowed": 5,
+      "mode": "exact",
+      "uses_hnsw": false,
+      "mean_returned": 6.0,
+      "short_queries": 0.0,
+      "empty_queries": 0.0,
+      "p50_ms": 1.8820175027940422,
+      "p95_ms": 2.337243960937485,
+      "recall_vs_exact": 1.0
+    }
+  ]
+}

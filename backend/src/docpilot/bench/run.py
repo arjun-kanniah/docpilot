@@ -130,6 +130,7 @@ def run_queries(
     ef_search: int = 200,
     reranker: Reranker | None = None,
     rerank_k: int = 50,
+    exact: bool = False,
     warmup: int = 5,
 ) -> list[QueryResult]:
     """Run each query through the app's search and rank documents by their best chunk.
@@ -142,6 +143,8 @@ def run_queries(
     if pipeline not in PIPELINES:
         raise ValueError(f"Unknown pipeline {pipeline!r}; choose from {', '.join(PIPELINES)}")
     session.execute(text(f"SET hnsw.ef_search = {int(ef_search)}"))
+    if exact:  # compare every chunk instead of using the HNSW index: slower, never misses
+        session.execute(text("SET enable_indexscan = off"))
 
     chunk_hits: Callable[[str], list[SearchHit]]
     if pipeline in ("bm25", "hybrid_bm25"):

@@ -72,6 +72,10 @@ and on one CPU core each one adds seconds per question. A better embedding model
 other hand, gains up to 0.144 on FiQA (OpenAI's text-embedding-3-large, +38%), significantly
 on all three datasets, for about USD 1.30 to embed 57,638 documents.
 
+**And one bug found:** a search limited to part of a large library could return few or no
+passages, because of how pgvector filters its index. With 1% of FiQA allowed, 69% of questions
+got nothing. One database setting fixes it (E5).
+
 ## E0: baseline, vector search
 
 Today's pipeline, unchanged.
@@ -324,3 +328,68 @@ bge-base (free, local, ~3× slower queries, re-embed the library) or a hosted mo
 for clients whose documents may go to the provider. The bench reproduces any row:
 `just bench --dataset fiqa --embedder openai-large --experiment E4` (needs `OPENAI_API_KEY`).
 
+
+## E5: the HNSW index, and searching part of a library
+
+### Exact search vs the index
+
+E0 found DocPilot 0.024 below bge-small's published score on FiQA and suspected the
+approximate HNSW index. E5 turns the index off (`--exact`: every chunk compared with the
+question) and also tries a wider index search (`--ef-search 400`; the bench's runs use 200).
+
+| Dataset | HNSW (ef_search 200) | Exact | Exact vs HNSW | Exact p50 / p95 | HNSW p50 |
+|---|---|---|---|---|---|
+| NFCorpus | 0.349 | 0.350 | +0.000 (−0.000 to +0.001) | 48 / 60 ms | 29 ms |
+| SciFact | 0.718 | 0.718 | identical on every query | 64 / 96 ms | 37 ms |
+| FiQA | 0.379 | 0.385 | +0.005 (+0.001 to +0.011), p = 0.06; better on 5 of 648, worse on none | 161 / 207 ms | 37 ms |
+
+ef_search 400 on FiQA: 0.382 (+0.003, not significant), 38 ms.
+
+- **The index costs almost nothing in quality** at these sizes, and at 57,638 documents it is
+  4× faster than comparing every chunk. Exact search changed 5 of 648 FiQA questions.
+- **So it doesn't explain E0's FiQA gap:** at most 0.006 of the 0.024. The rest likely comes
+  from how documents are scored here (by their best chunk) and other setup differences from
+  the published evaluation, not from anything that varies between DocPilot's own runs.
+
+### The filter problem
+
+A chat limited to some documents searches with a `document_id IN (...)` filter, and per-user
+access control would work the same way. pgvector's HNSW index finds the 40 nearest chunks
+(`hnsw.ef_search`) and only then applies the filter. When the allowed documents are a small
+share of the library, few of those 40 pass.
+
+`python -m docpilot.bench.filters` runs every test question against a fixed random subset of
+the library (as if that's all a user may read), asks for 6 passages as the app does, and
+compares the app's search with the exact answer (index off).
+
+FiQA, 57,638 documents, one core:
+
+| Documents allowed | pgvector defaults (the app before this) | | | With iterative scan (the app now) | | Exact |
+|---|---|---|---|---|---|---|
+| | Passages returned (of 6) | Questions with none | Recall vs exact | Passages returned | Recall vs exact | p50 |
+| All 57,638 | 6.00 | 0% | 0.953 | 6.00 | 0.953 | 147 ms |
+| 10% (5,764) | 3.88 | 2% | 0.627 | 6.00 | 0.887 | 85 ms |
+| 1% (576) | **0.39** | **69%** | 0.065 | 6.00 | 0.917 | 19 ms |
+| 0.1% (58) | 6.00 | 0% | 1.000 | 6.00 | 1.000 | 3 ms |
+
+The iterative scan's p50 is 45 ms at 10% and 19 ms at 1% (3.5 ms unfiltered). NFCorpus and
+SciFact show the same pattern at 10% (75 to 79% of questions got fewer than 6 passages, about
+3.5 on average, 6 to 7% got none), and the iterative scan fixes them the same way (recall vs
+exact 0.86 and 0.93). Results: [`bench/E5-filters-*.json`](bench/).
+
+- **This was a real bug in DocPilot.** With 1% of a 57,638-document library allowed, 69% of
+  questions retrieved nothing, and the model would have said the documents don't cover it.
+  The five-document demo can't show it, and nothing errors: the search just returns less.
+- **It's narrow-but-not-tiny filters that fail.** At 0.1%, Postgres's planner skips the HNSW
+  index on its own (comparing the ~80 allowed chunks directly is cheaper) and searches exactly, which
+  is correct and fast. Between roughly 1% and 10% it uses the index, and the index runs out.
+- **The fix is one setting.** pgvector 0.8 can keep scanning the index until it has enough rows
+  (`hnsw.iterative_scan`; `strict_order` keeps them in exact distance order). Migration 0003
+  makes it the database's default, so it costs nothing unfiltered, and a database with an older
+  pgvector fails the migration (which runs before every deploy) rather than the app's searches.
+- **Iterative isn't exact:** 0.89 to 0.92 of the exact top 6 on FiQA. For a narrow filter where
+  that matters, exact search is cheap (19 ms at 1%); for stricter needs, partial indexes per
+  tenant or partitioning are the usual next steps.
+
+**What ships:** migration 0003. DocPilot's chats and Research mode use the document filter
+today, and access control would use the same one.

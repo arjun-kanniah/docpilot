@@ -129,3 +129,11 @@ def test_rerank_keeps_the_rest_in_order_after_the_top() -> None:
     ]
     out = rerank(PreferReranker("warranty"), "q", hits, top=2)
     assert [h.filename for h in out] == ["b", "a", "c"]  # c is past the top 2: untouched
+
+
+def test_filtered_vector_search_keeps_scanning_the_index(db_session: Session) -> None:
+    # Migration 0003: without an iterative scan, a narrow document filter can leave fewer than
+    # k passages (or none) from HNSW's first 40 candidates.
+    from sqlalchemy import text
+
+    assert db_session.scalar(text("SHOW hnsw.iterative_scan")) == "strict_order"

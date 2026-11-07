@@ -63,6 +63,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--limit", type=int, help="run only the first N test queries")
     parser.add_argument("--chunk-k", type=int, default=150, help="passages retrieved per query")
     parser.add_argument("--ef-search", type=int, default=200, help="pgvector hnsw.ef_search")
+    parser.add_argument("--exact", action="store_true", help="vector search without the index")
     parser.add_argument("--threads", type=int, default=1, help="CPU cores for the query phase")
     parser.add_argument("--reranker", help=f"rerank with a cross-encoder: {', '.join(RERANKERS)}")
     parser.add_argument("--rerank-k", type=int, default=50, help="chunks the reranker reads")
@@ -165,10 +166,15 @@ def main(argv: list[str] | None = None) -> int:
             ef_search=args.ef_search,
             reranker=reranker,
             rerank_k=args.rerank_k,
+            exact=args.exact,
         )
     summary = summarize(results, dataset.qrels)
 
     name = args.pipeline if args.embedder == DEFAULT else f"{args.pipeline}[{args.embedder}]"
+    if args.exact:
+        name += "+exact"
+    elif args.ef_search != 200:
+        name += f"+ef{args.ef_search}"
     if args.reranker:
         name += f"+{args.reranker}@{args.rerank_k}"
     print(
@@ -192,7 +198,8 @@ def main(argv: list[str] | None = None) -> int:
         "config": {
             **index_config,
             "chunk_k": args.chunk_k,
-            "ef_search": args.ef_search,
+            "ef_search": None if args.exact else args.ef_search,
+            "exact": args.exact,
             "query_cores": len(cores) or None,
             "reranker": RERANKERS.get(args.reranker, args.reranker) if args.reranker else None,
             "rerank_k": args.rerank_k if args.reranker else None,
