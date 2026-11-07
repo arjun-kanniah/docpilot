@@ -1,14 +1,10 @@
-"""Filtered vector search returns k passages: pgvector's iterative index scan, on by default.
+"""Require pgvector 0.8 or later, for iterative index scans in filtered vector search.
 
-pgvector's HNSW index finds the nearest chunks first and applies a filter (a chat limited to
-some documents) afterwards, from at most hnsw.ef_search (40) candidates. When the allowed
-documents are a small share of the library, few or none of those 40 pass: on FiQA with 1% of
-57,638 documents allowed, 69% of questions got no passages at all
-(docs/retrieval-experiments.md, E5). An iterative scan keeps searching the index until it has
-enough rows; strict_order keeps them in exact distance order. It needs pgvector 0.8.0 or later,
-so a database without it fails this migration rather than the app's searches.
-
-Set as the database's default, so every connection gets it at no per-query cost.
+retrieval._vector_rows turns on hnsw.iterative_scan for searches limited to some documents
+(docs/retrieval-experiments.md, E5). It is set per transaction because a managed database's
+role may not be allowed to make it a database default (Neon refuses ALTER DATABASE ... SET
+for it). This migration only checks that the setting exists, so a database with an older
+pgvector fails here, before a deploy, rather than in the app's searches.
 
 Revision ID: 0003
 Revises: 0002
@@ -23,21 +19,9 @@ branch_labels = None
 depends_on = None
 
 
-def _set_default(value: str) -> None:
-    # ALTER DATABASE needs the database's name; a DO block reads it from the connection.
-    op.execute(
-        "DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET hnsw.iterative_scan = "
-        f"{value}', current_database()); END $$"
-    )
-
-
 def upgrade() -> None:
-    op.execute("SET hnsw.iterative_scan = strict_order")  # fails early on pgvector < 0.8
-    _set_default("strict_order")
+    op.execute("SET LOCAL hnsw.iterative_scan = strict_order")
 
 
 def downgrade() -> None:
-    op.execute(
-        "DO $$ BEGIN EXECUTE format('ALTER DATABASE %I RESET hnsw.iterative_scan', "
-        "current_database()); END $$"
-    )
+    pass

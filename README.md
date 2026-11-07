@@ -229,8 +229,8 @@ significance test for every comparison (`just bench`, `just bench-compare`).
   for USD 1.30 to embed it. The price is that documents and questions go to the provider, each
   question waits ~250 ms more, and changing models means re-embedding.
 - **A bug the demo couldn't show:** a chat limited to 1% of a large library got no passages
-  for 69% of questions, because pgvector filters *after* its index search. One database setting
-  (iterative index scans, migration 0003) fixes it, and every search now returns its passages.
+  for 69% of questions, because pgvector filters *after* its index search. One pgvector setting
+  (an iterative index scan for filtered searches) fixes it, and they now get their passages.
 
 The demo keeps bge-small: its library is answered perfectly, and it runs locally at ~37 ms a
 question. Hybrid search and reranking are built in and off by default (`DOCPILOT_RETRIEVAL`,

@@ -7,7 +7,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sqlalchemy import Select, func, literal_column, select
+from sqlalchemy import Select, func, literal_column, select, text
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.orm import Session
 
@@ -126,8 +126,24 @@ def _base(vector: list[float], document_ids: Collection[uuid.UUID] | None) -> tu
 
 
 def _vector_rows(
-    session: Session, vector: list[float], k: int, document_ids: Collection[uuid.UUID] | None
+    session: Session,
+    vector: list[float],
+    k: int,
+    document_ids: Collection[uuid.UUID] | None,
+    *,
+    iterative: bool = True,
 ) -> Sequence[Any]:
+    """The k chunks nearest the query vector, optionally only from the given documents.
+
+    pgvector's HNSW index finds its nearest candidates (hnsw.ef_search, 40) before the document
+    filter is applied, so a filter matching a small share of a large library can leave fewer
+    than k, or none: on FiQA with 1% of documents allowed, 69% of questions got no passages
+    (docs/retrieval-experiments.md, E5). An iterative scan (pgvector 0.8+) keeps searching the
+    index until it has k rows; strict_order keeps them in distance order. SET LOCAL lasts until
+    the transaction ends, so it also works through a transaction-mode connection pooler.
+    """
+    if document_ids is not None and iterative:
+        session.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
     statement, distance = _base(vector, document_ids)
     return session.execute(statement.order_by(distance).limit(k)).all()
 

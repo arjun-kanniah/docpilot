@@ -384,12 +384,16 @@ exact 0.86 and 0.93). Results: [`bench/E5-filters-*.json`](bench/).
   index on its own (comparing the ~80 allowed chunks directly is cheaper) and searches exactly, which
   is correct and fast. Between roughly 1% and 10% it uses the index, and the index runs out.
 - **The fix is one setting.** pgvector 0.8 can keep scanning the index until it has enough rows
-  (`hnsw.iterative_scan`; `strict_order` keeps them in exact distance order). Migration 0003
-  makes it the database's default, so it costs nothing unfiltered, and a database with an older
-  pgvector fails the migration (which runs before every deploy) rather than the app's searches.
+  (`hnsw.iterative_scan`; `strict_order` keeps them in exact distance order). The app turns it
+  on for filtered searches only, per transaction (`SET LOCAL`). It was first a database default
+  set by a migration, but Neon doesn't let the app's role set this parameter for a database;
+  the deploy's migration step caught that before anything changed. Migration 0003 now only
+  checks that the setting exists, so a database with an older pgvector fails the migration
+  (which runs before every deploy) rather than the app's searches.
 - **Iterative isn't exact:** 0.89 to 0.92 of the exact top 6 on FiQA. For a narrow filter where
   that matters, exact search is cheap (19 ms at 1%); for stricter needs, partial indexes per
   tenant or partitioning are the usual next steps.
 
-**What ships:** migration 0003. DocPilot's chats and Research mode use the document filter
+**What ships:** the iterative scan for filtered searches (`retrieval.py`), and migration 0003's
+pgvector check. DocPilot's chats and Research mode use the document filter
 today, and access control would use the same one.

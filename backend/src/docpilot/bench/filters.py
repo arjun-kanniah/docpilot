@@ -9,8 +9,8 @@ the nearest `hnsw.ef_search` chunks (40 by default) may hold few or none of them
 each test query against a fixed random subset of the library ("what this user may read") and
 compares the app's own search under three settings with the exact answer:
 
-- app: whatever the database defaults to, which is how the app runs (iterative since 0003)
-- default: pgvector's own defaults (ef_search 40, no iterative scan), the app before 0003
+- app: the app's search as it runs (an iterative scan for filtered searches, E5's fix)
+- default: pgvector's own defaults (ef_search 40, no iterative scan), the app before E5
 - iterative: pgvector 0.8's iterative index scan, which keeps scanning until it has k rows
 - exact: no index, every allowed chunk compared (the ground truth)
 
@@ -40,7 +40,7 @@ from docpilot.retrieval import _base, _vector_rows
 
 SEED = 2026
 MODES = {
-    "app": [],  # the database's own defaults, as the app runs (migration 0003)
+    "app": [],  # pgvector's defaults, plus what the app's own search turns on
     "default": ["SET hnsw.ef_search = 40", "SET hnsw.iterative_scan = off"],
     "iterative": ["SET hnsw.ef_search = 40", "SET hnsw.iterative_scan = strict_order"],
     "exact": ["SET enable_indexscan = off"],
@@ -93,11 +93,11 @@ def main(argv: list[str] | None = None) -> int:
             for mode in MODES:
                 configure(session, mode)
                 for vector in vectors[:5]:  # warm the caches
-                    _vector_rows(session, vector, args.k, allowed)
+                    _vector_rows(session, vector, args.k, allowed, iterative=mode == "app")
                 results, seconds = [], []
                 for vector in vectors:
                     started = time.perf_counter()
-                    hits = _vector_rows(session, vector, args.k, allowed)
+                    hits = _vector_rows(session, vector, args.k, allowed, iterative=mode == "app")
                     seconds.append((time.perf_counter() - started) * 1000)
                     results.append([row[0].id for row in hits])
                 found[mode] = results
