@@ -4,7 +4,8 @@ module "project" {
   source = "github.com/arjun-kanniah/cloudrun-blueprint//modules/project?ref=v0.1.0"
 
   project_id          = var.project_id
-  github_repositories = [var.github_repository]
+  # The project is shared: Keel (arjun-kanniah/keel) deploys its own service into it too
+  github_repositories = [var.github_repository, "arjun-kanniah/keel"]
   billing_account     = var.billing_account
   budget_name         = "DocPilot monthly"
   monthly_budget      = var.monthly_budget
